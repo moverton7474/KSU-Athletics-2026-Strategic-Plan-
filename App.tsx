@@ -4,7 +4,11 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import ActionCard from './components/ActionCard';
 import { PILLARS_DATA } from './constants';
-import { CheckSquare, Flag, ArrowRight, BrainCircuit, FileText, Download, Table, ClipboardList, CloudUpload, CloudCheck, AlertTriangle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { 
+  CheckSquare, Flag, ArrowRight, BrainCircuit, FileText, Download, 
+  Table, ClipboardList, CloudUpload, CloudCheck, AlertTriangle, 
+  TrendingUp, TrendingDown, Minus, RefreshCw, Database, Activity, Info
+} from 'lucide-react';
 import { StrategicAssistant } from './components/StrategicAssistant';
 import { TTSPlayer } from './components/TTSPlayer';
 import { StrategicPillar, ActionItem } from './types';
@@ -15,57 +19,148 @@ const PLAN_KEY = 'ksu_2026_strategic_plan';
 const App: React.FC = () => {
   const [pillars, setPillars] = useState<StrategicPillar[]>(PILLARS_DATA);
   const [activePillarId, setActivePillarId] = useState(0);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'local'>('idle');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'local' | 'no-schema'>('idle');
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [diagMessage, setDiagMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchPlan = async () => {
-      if (!supabase) {
-        const local = localStorage.getItem(PLAN_KEY);
-        if (local) {
-          try {
-            const parsed = JSON.parse(local);
-            const merged = PILLARS_DATA.map(p => {
-              const savedPillar = parsed.find((sp: any) => sp.id === p.id);
-              return savedPillar ? { ...p, actions: savedPillar.actions } : p;
-            });
-            setPillars(merged);
-          } catch (e) { console.error(e); }
-        }
-        setSyncStatus('local');
-        return;
-      }
+  const fetchPlan = useCallback(async () => {
+    // 1. Try Local Storage First
+    const local = localStorage.getItem(PLAN_KEY);
+    if (local) {
       try {
-        const { data, error } = await supabase.from('strategic_plan').select('data').eq('plan_key', PLAN_KEY).single();
-        if (error && error.code !== 'PGRST116') throw error;
-        if (data && data.data) {
-          const parsed = data.data;
-          const merged = PILLARS_DATA.map(p => {
-            const savedPillar = parsed.find((sp: any) => sp.id === p.id);
-            return savedPillar ? { ...p, actions: savedPillar.actions } : p;
-          });
-          setPillars(merged);
-          setSyncStatus('saved');
+        const parsed = JSON.parse(local);
+        const merged = PILLARS_DATA.map(p => {
+          const savedPillar = parsed.find((sp: any) => sp.id === p.id);
+          return savedPillar ? { ...p, actions: savedPillar.actions } : p;
+        });
+        setPillars(merged);
+      } catch (e) { console.error("Local Storage Parse Error:", e); }
+    }
+
+    // 2. Try Supabase
+    if (!supabase) {
+      setSyncStatus('local');
+      return;
+    }
+
+    try {
+      setSyncStatus('syncing');
+      const { data, error } = await supabase.from('strategic_plan').select('data, updated_at').eq('plan_key', PLAN_KEY).single();
+      
+      if (error) {
+        if (error.code === 'PGRST205') {
+          console.warn("Table 'strategic_plan' missing in Supabase. Run SQL migration.");
+          setSyncStatus('no-schema');
+          return;
         }
-      } catch (e) { setSyncStatus('error'); }
-    };
-    fetchPlan();
+        if (error.code !== 'PGRST116') throw error; // PGRST116 is just "no record found", which is fine for first run
+      }
+
+      if (data && data.data) {
+        const parsed = data.data;
+        const merged = PILLARS_DATA.map(p => {
+          const savedPillar = parsed.find((sp: any) => sp.id === p.id);
+          return savedPillar ? { ...p, actions: savedPillar.actions } : p;
+        });
+        setPillars(merged);
+        setLastSaved(new Date(data.updated_at).toLocaleTimeString());
+        setSyncStatus('saved');
+      } else {
+        setSyncStatus('idle');
+      }
+    } catch (e: any) { 
+      console.error("Fetch Error:", e);
+      setSyncStatus('error'); 
+    }
   }, []);
 
-  useEffect(() => {
-    const syncData = async () => {
-      const dataToSave = pillars.map(p => ({ id: p.id, actions: p.actions }));
-      localStorage.setItem(PLAN_KEY, JSON.stringify(dataToSave));
-      if (!supabase) return;
-      setSyncStatus('syncing');
-      try {
-        const { error } = await supabase.from('strategic_plan').upsert({ plan_key: PLAN_KEY, data: dataToSave, updated_at: new Date().toISOString() }, { onConflict: 'plan_key' });
-        if (error) throw error;
+  const syncData = useCallback(async (manual = false) => {
+    const dataToSave = pillars.map(p => ({ id: p.id, actions: p.actions }));
+    localStorage.setItem(PLAN_KEY, JSON.stringify(dataToSave));
+    
+    if (!supabase || syncStatus === 'no-schema') {
+      if (manual && syncStatus === 'no-schema') {
+        setDiagMessage("Cannot sync: Database table 'strategic_plan' is missing.");
+        setTimeout(() => setDiagMessage(null), 5000);
+      }
+      return;
+    }
+    
+    setSyncStatus('syncing');
+    try {
+      const { error } = await supabase.from('strategic_plan').upsert({ 
+        plan_key: PLAN_KEY, 
+        data: dataToSave, 
+        updated_at: new Date().toISOString() 
+      }, { onConflict: 'plan_key' });
+      
+      if (error) {
+        if (error.code === 'PGRST205') {
+          setSyncStatus('no-schema');
+          return;
+        }
+        throw error;
+      }
+      
+      const now = new Date().toLocaleTimeString();
+      setLastSaved(now);
+      setSyncStatus('saved');
+      if (manual) {
+        setDiagMessage(`Manual Sync Successful at ${now}`);
+        setTimeout(() => setDiagMessage(null), 3000);
+      }
+    } catch (e: any) { 
+      console.error("Sync Error:", e);
+      setSyncStatus('error'); 
+    }
+  }, [pillars, syncStatus]);
+
+  const runDiagnostics = async () => {
+    if (!supabase) {
+      setDiagMessage("Error: Supabase client not initialized.");
+      return;
+    }
+    setDiagMessage("Running write/read diagnostic...");
+    try {
+      const testKey = `diag_${Date.now()}`;
+      const { error: writeErr } = await supabase.from('strategic_plan').upsert({
+        plan_key: 'connection_test',
+        data: { last_ping: testKey },
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'plan_key' });
+      
+      if (writeErr) {
+        if (writeErr.code === 'PGRST205') throw new Error("Table 'strategic_plan' is missing. Copy SQL from the README.");
+        throw new Error(`Write Failed: ${writeErr.message}`);
+      }
+
+      const { data, error: readErr } = await supabase.from('strategic_plan').select('data').eq('plan_key', 'connection_test').single();
+      if (readErr) throw new Error(`Read Failed: ${readErr.message}`);
+      
+      if (data.data.last_ping === testKey) {
+        setDiagMessage("Success: Database Write/Read verified.");
         setSyncStatus('saved');
-      } catch (e) { setSyncStatus('error'); }
-    };
-    const timer = setTimeout(syncData, 2000);
-    return () => clearTimeout(timer);
-  }, [pillars]);
+      } else {
+        setDiagMessage("Warning: Write succeeded but data mismatch on read.");
+      }
+    } catch (e: any) {
+      setDiagMessage(`Diagnostic Failed: ${e.message}`);
+      if (e.message.includes('missing')) setSyncStatus('no-schema');
+    }
+    setTimeout(() => setDiagMessage(null), 5000);
+  };
+
+  useEffect(() => {
+    fetchPlan();
+  }, [fetchPlan]);
+
+  useEffect(() => {
+    // Only auto-sync if we haven't detected a missing schema
+    if (syncStatus !== 'no-schema') {
+      const timer = setTimeout(() => syncData(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [pillars, syncData, syncStatus]);
 
   const activePillar = pillars.find(p => p.id === activePillarId) || pillars[0];
 
@@ -97,13 +192,71 @@ const App: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-white text-gray-900 overflow-x-hidden selection:bg-yellow-500 selection:text-black print:bg-white">
       <div className="print:hidden">
         <Header />
-        <div className="bg-gray-100 px-6 py-2 flex justify-end border-b border-gray-200">
-          <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
-            {syncStatus === 'syncing' && <><CloudUpload className="w-3 h-3 text-blue-500 animate-pulse" /> <span className="text-blue-600">Syncing...</span></>}
-            {syncStatus === 'saved' && <><CloudCheck className="w-3 h-3 text-green-500" /> <span className="text-green-600">Cloud Synced</span></>}
-            {syncStatus === 'local' && <><AlertTriangle className="w-3 h-3 text-yellow-600" /> <span className="text-yellow-700">Local Only</span></>}
+        
+        {/* Connection Bar */}
+        <div className="bg-gray-100 px-6 py-2 flex flex-col md:flex-row justify-between items-center border-b border-gray-200 gap-2">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-gray-500">
+              <Database className="w-3 h-3" />
+              <span>Project ID: <span className="text-black">pygjtypiblbkuvhltigv</span></span>
+            </div>
+            {diagMessage && (
+              <div className="flex items-center space-x-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full animate-in fade-in slide-in-from-left-4">
+                <Activity className="w-3 h-3 animate-pulse" />
+                <span>{diagMessage}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
+              {syncStatus === 'syncing' && <><CloudUpload className="w-3 h-3 text-blue-500 animate-pulse" /> <span className="text-blue-600">Syncing...</span></>}
+              {syncStatus === 'saved' && <><CloudCheck className="w-3 h-3 text-green-500" /> <span className="text-green-600">Cloud Synced {lastSaved && `(${lastSaved})`}</span></>}
+              {syncStatus === 'local' && <><AlertTriangle className="w-3 h-3 text-yellow-600" /> <span className="text-yellow-700">Local Mode</span></>}
+              {syncStatus === 'no-schema' && <><AlertTriangle className="w-3 h-3 text-red-500 animate-pulse" /> <span className="text-red-600">Table Missing (Check SQL)</span></>}
+              {syncStatus === 'error' && <><AlertTriangle className="w-3 h-3 text-red-600" /> <span className="text-red-700">Sync Error</span></>}
+            </div>
+            
+            <div className="h-4 w-px bg-gray-300"></div>
+            
+            <button 
+              onClick={() => syncData(true)}
+              disabled={syncStatus === 'no-schema'}
+              className={`flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${syncStatus === 'no-schema' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-black'}`}
+              title={syncStatus === 'no-schema' ? "Database table missing" : "Force database write"}
+            >
+              <RefreshCw className={`w-3 h-3 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+              <span>Force Sync</span>
+            </button>
+            
+            <button 
+              onClick={runDiagnostics}
+              className="flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-black transition-colors border-l border-gray-300 pl-4"
+              title="Test Read/Write Permissions"
+            >
+              <Activity className="w-3 h-3" />
+              <span>Run Diag</span>
+            </button>
           </div>
         </div>
+
+        {/* Missing Schema Alert Banner */}
+        {syncStatus === 'no-schema' && (
+          <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-500">
+            <div className="flex items-center space-x-3">
+              <Info className="w-5 h-5 flex-shrink-0" />
+              <p className="text-xs font-bold uppercase tracking-widest">
+                Database Table Missing: Run the SQL migration in your Supabase dashboard to enable cloud saving.
+              </p>
+            </div>
+            <button 
+              onClick={runDiagnostics}
+              className="bg-white text-red-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter hover:bg-gray-100 transition-colors"
+            >
+              Check Again
+            </button>
+          </div>
+        )}
       </div>
 
       <main className="flex flex-1 flex-col md:flex-row max-w-[1920px] mx-auto w-full relative">
