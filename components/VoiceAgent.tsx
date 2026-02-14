@@ -48,7 +48,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
               scriptProcessor.onaudioprocess = (e) => {
                 const inputData = e.inputBuffer.getChannelData(0);
                 const pcmBlob = createBlob(inputData);
-                // Fix: Solely rely on sessionPromise resolves to prevent race conditions and stale closures
+                // Fix: Solely rely on sessionPromise resolves to send input
                 sessionPromise.then(session => {
                   session.sendRealtimeInput({ media: pcmBlob });
                 });
@@ -81,7 +81,6 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
               nextStartTimeRef.current = 0;
             }
 
-            // Fix: Explicitly cast transcriptText to string to resolve line 108 error
             const transcriptText = message.serverContent?.inputTranscription?.text;
             if (transcriptText) {
                setTranscription(prev => prev + String(transcriptText));
@@ -105,17 +104,16 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
                       status: fc.args.status || "Planned"
                     });
                   } else if (fc.name === 'delete_action_item') {
-                    // Fix: Ensure taskName is passed as a string
                     onDeleteAction(Number(fc.args.pillarId), String(fc.args.taskName));
                   }
                 } catch (e) {
                   result = "Error executing command: " + (e as Error).message;
                 }
                 
-                // Fix: Tool responses must be sent in an array format per guidelines
+                // Fix: Tool responses must use an object for functionResponses per guideline examples
                 sessionPromise.then(session => {
                   session.sendToolResponse({
-                    functionResponses: [{ id: fc.id, name: fc.name, response: { result } }]
+                    functionResponses: { id: fc.id, name: fc.name, response: { result } }
                   });
                 });
               }

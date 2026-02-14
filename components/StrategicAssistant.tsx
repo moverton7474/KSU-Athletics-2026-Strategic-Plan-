@@ -144,9 +144,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
               sourcesRef.current.add(source);
+              source.onended = () => sourcesRef.current.delete(source);
             }
             
-            // Fixed transcription handling: append text chunks
+            // Fix: Improved safety for transcription text chunk appending
             const inputTranscript = message.serverContent?.inputTranscription?.text;
             if (inputTranscript) {
               setTranscription(prev => prev + inputTranscript);
@@ -154,7 +155,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
 
             if (message.serverContent?.turnComplete) {
               setChatHistory(prev => {
-                // Only add to history if there's actual content
                 if (transcription.trim()) {
                   return [...prev, { role: 'user', text: transcription.trim() }];
                 }
@@ -171,7 +171,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                 if (fc.name === 'schedule_calendar_event') onAgentAction('calendar', `Meeting booked: ${fc.args.title}`);
                 if (fc.name === 'update_second_brain') onUpdateKB({ ...knowledgeBase, lastVoiceSync: fc.args.newIntelligence });
                 
-                sessionPromise.then(s => s.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { result: "Task Completed" } }] }));
+                // Fix: Tool responses must use an object for functionResponses as per guideline examples
+                sessionPromise.then(s => s.sendToolResponse({ 
+                  functionResponses: { id: fc.id, name: fc.name, response: { result: "Task Completed" } } 
+                }));
               }
             }
           },
@@ -180,8 +183,8 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {}, // Mandatory to receive user audio as text
-          outputAudioTranscription: {}, // Helpful for logs
+          inputAudioTranscription: {}, 
+          outputAudioTranscription: {}, 
           systemInstruction: `You are the KSU Strategic Voice Operator.
           MISSION: Help Milton Overton and staff actually GET THINGS DONE.
           INTELLIGENCE: ${JSON.stringify(knowledgeBase)}
@@ -213,6 +216,12 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
     });
     audioContextRef.current = null;
     outputAudioContextRef.current = null;
+    // Fix: Added source stop and clear for complete cleanup
+    sourcesRef.current.forEach(s => {
+      try { s.stop(); } catch(e) {}
+    });
+    sourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
   };
 
   return (

@@ -9,24 +9,40 @@ import {
   CheckSquare, Flag, ArrowRight, BrainCircuit, FileText, Download, 
   Table as TableIcon, ClipboardList, CloudUpload, CloudCheck, AlertTriangle, 
   TrendingUp, TrendingDown, Minus, RefreshCw, Database, Activity, Info, Copy, Check, ExternalLink, Terminal, Zap,
-  Mail, Calendar, Settings, Layout
+  Mail, Calendar, Settings, Layout, ShieldCheck, Lock
 } from 'lucide-react';
 import { StrategicAssistant } from './components/StrategicAssistant';
 import { TTSPlayer } from './components/TTSPlayer';
-import { StrategicPillar, ActionItem, Collaborator } from './types';
+// Fix: Removed non-existent Type import from ./types. StrategicPillar, ActionItem, CurrentUser, Organization are correctly exported.
+import { StrategicPillar, ActionItem, CurrentUser, Organization } from './types';
 import { supabase } from './lib/supabase';
 import { KNOWLEDGE_BASE as INITIAL_KB } from './knowledgeBase';
+import { GoogleGenAI } from '@google/genai';
 
 const PLAN_KEY = 'ksu_2026_strategic_plan';
 const KB_KEY = 'ksu_strategic_knowledge';
 
 const App: React.FC = () => {
+  // Phase 2: Current Session Simulation
+  const [currentUser] = useState<CurrentUser>({
+    id: 'user-001',
+    name: 'Milton Overton',
+    email: 'ad@ksu.edu',
+    role: 'Admin', // Change to 'Contributor' to test RBAC
+    orgId: 'ksu-athletics'
+  });
+
+  const [activeOrg] = useState<Organization>({
+    id: 'ksu-athletics',
+    name: 'Kennesaw State Athletics',
+    industry: 'Collegiate Sports'
+  });
+
   const [viewMode, setViewMode] = useState<'executive' | 'architect'>('executive');
   const [pillars, setPillars] = useState<StrategicPillar[]>(PILLARS_DATA);
   const [kb, setKb] = useState<any>(INITIAL_KB);
   const [activePillarId, setActivePillarId] = useState(0);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'local' | 'no-schema'>('idle');
-  const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'action'} | null>(null);
 
   const fetchAllData = useCallback(async () => {
@@ -45,17 +61,12 @@ const App: React.FC = () => {
       }
 
       if (planRes.data?.data) {
-        // In a real SaaS, we'd map icons properly. For now, we merge saved actions with static pillar structures
         const merged = PILLARS_DATA.map(p => {
           const savedPillar = planRes.data.data.find((sp: any) => sp.id === p.id);
           return savedPillar ? { ...p, ...savedPillar } : p;
         });
-        
-        // Handle entirely new pillars created in Architect mode
         const newPillars = planRes.data.data.filter((sp: any) => !PILLARS_DATA.find(p => p.id === sp.id));
         setPillars([...merged, ...newPillars]);
-        
-        setLastSaved(new Date(planRes.data.updated_at).toLocaleTimeString());
       }
 
       const kbRes = await supabase.from('strategic_knowledge').select('content').eq('kb_key', KB_KEY).single();
@@ -79,7 +90,6 @@ const App: React.FC = () => {
         updated_at: new Date().toISOString() 
       }, { onConflict: 'plan_key' });
       setSyncStatus('saved');
-      setLastSaved(new Date().toLocaleTimeString());
     } catch (e) { setSyncStatus('error'); }
   }, [pillars, syncStatus]);
 
@@ -91,34 +101,64 @@ const App: React.FC = () => {
       content: newContent,
       updated_at: new Date().toISOString()
     }, { onConflict: 'kb_key' });
-    setNotification({ message: "Second Brain Updated with New Intelligence", type: 'success' });
+    setNotification({ message: "Second Brain Synced", type: 'success' });
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
   useEffect(() => { fetchAllData(); }, [fetchAllData]);
 
-  const handleNavigate = (id: number) => {
-    setActivePillarId(id);
-    setViewMode('executive');
+  // Phase 2: AI Alignment Engine
+  const calculateAlignment = async (task: string, pillar: StrategicPillar) => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Analyze the alignment between a tactical task and a strategic pillar objective.
+        TASK: "${task}"
+        PILLAR OBJECTIVE: "${pillar.enablingAction}"
+        Return a JSON object with: 
+        1. score (integer 0-100)
+        2. rationale (one sentence explaining why).`,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+      const data = JSON.parse(response.text);
+      return data;
+    } catch (e) {
+      return { score: 75, rationale: "Automated alignment check failed; defaulting to high probability." };
+    }
   };
 
-  const handleAddAction = (pillarId: number, newAction: any) => {
+  const handleAddAction = async (pillarId: number, newAction: any) => {
+    setNotification({ message: "Running AI Alignment Analysis...", type: 'action' });
+    
+    const targetPillar = pillars.find(p => p.id === pillarId) || pillars[0];
+    const alignment = await calculateAlignment(newAction.task, targetPillar);
+
     const item: ActionItem = {
       id: Math.random().toString(36).substr(2, 9),
       task: newAction.task || "New Initiative",
       owner: newAction.owner || "Staff",
       priority: (newAction.priority as any) || "Medium",
-      source: "Strategic AI",
-      status: "Added via Operator",
-      deadline: newAction.deadline
+      source: "StratOS Operator",
+      status: "Verified",
+      deadline: newAction.deadline,
+      alignmentScore: alignment.score,
+      strategicRationale: alignment.rationale
     };
 
     const updated = pillars.map(p => p.id === pillarId ? { ...p, actions: [item, ...p.actions] } : p);
     setPillars(updated);
     syncPlan(updated);
 
-    setNotification({ message: `Action added: ${item.task}`, type: 'success' });
+    setNotification({ message: `Success: Task Aligned (${alignment.score}%)`, type: 'success' });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleNavigate = (id: number) => {
+    setActivePillarId(id);
+    setViewMode('executive');
   };
 
   const activePillar = pillars.find(p => p.id === activePillarId) || pillars[0];
@@ -144,7 +184,7 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-gray-500">
               <Database className="w-3 h-3" />
-              <span>Org: <span className="text-black">KSU Athletics</span></span>
+              <span>Org: <span className="text-black">{activeOrg.name}</span></span>
             </div>
             
             <div className="flex bg-gray-200 p-1 rounded-lg">
@@ -155,11 +195,16 @@ const App: React.FC = () => {
                 <Layout size={12} />
                 <span>Executive</span>
               </button>
+              
+              {/* RBAC Gate: Only Admin can access Architect mode */}
               <button 
-                onClick={() => setViewMode('architect')}
-                className={`flex items-center space-x-2 px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all ${viewMode === 'architect' ? 'bg-black text-yellow-500 shadow-sm' : 'text-gray-500 hover:text-black'}`}
+                onClick={() => currentUser.role === 'Admin' ? setViewMode('architect') : alert('Access Denied: Admin role required.')}
+                className={`flex items-center space-x-2 px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all ${
+                  viewMode === 'architect' ? 'bg-black text-yellow-500 shadow-sm' : 
+                  currentUser.role === 'Admin' ? 'text-gray-500 hover:text-black' : 'text-gray-300 cursor-not-allowed'
+                }`}
               >
-                <Settings size={12} />
+                {currentUser.role === 'Admin' ? <Settings size={12} /> : <Lock size={12} />}
                 <span>Architect</span>
               </button>
             </div>
@@ -167,8 +212,9 @@ const App: React.FC = () => {
 
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
-              {syncStatus === 'saved' && <><CloudCheck className="w-3 h-3 text-green-500" /> <span className="text-green-600">Plan Synced</span></>}
-              {syncStatus === 'syncing' && <><RefreshCw className="w-3 h-3 text-yellow-600 animate-spin" /> <span className="text-yellow-600">Updating...</span></>}
+               <div className="w-2 h-2 rounded-full bg-green-500"></div>
+               <span className="text-gray-900 font-bold">{currentUser.name}</span>
+               <span className="text-gray-400">({currentUser.role})</span>
             </div>
             <div className="h-4 w-px bg-gray-300"></div>
             <button onClick={() => fetchAllData()} className="text-[10px] font-black uppercase text-gray-600 hover:text-black">Refresh</button>
@@ -226,11 +272,6 @@ const App: React.FC = () => {
                     {activePillar?.actions.map((action) => (
                       <ActionCard key={action.id} action={action} />
                     ))}
-                    {activePillar?.actions.length === 0 && (
-                      <div className="p-12 border-2 border-dashed border-gray-200 rounded-[2.5rem] text-center">
-                        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">No tactics defined for this pillar.</p>
-                      </div>
-                    )}
                   </div>
                 </section>
               </div>

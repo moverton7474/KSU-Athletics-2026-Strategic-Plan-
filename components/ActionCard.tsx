@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { User, AlertCircle, Clock, Calendar } from 'lucide-react';
+import { User, AlertCircle, Clock, Calendar, ShieldCheck, Target } from 'lucide-react';
 import { ActionItem } from '../types';
 
 interface ActionCardProps {
@@ -10,24 +10,36 @@ interface ActionCardProps {
 const ActionCard: React.FC<ActionCardProps> = ({ action }) => {
   const getPriorityStyles = (priority: string) => {
     switch (priority) {
-      case 'Critical':
-        return 'bg-red-500 text-white shadow-red-100';
-      case 'High':
-        return 'bg-yellow-500 text-black shadow-yellow-100';
-      default:
-        return 'bg-blue-600 text-white shadow-blue-100';
+      case 'Critical': return 'bg-red-500 text-white shadow-red-100';
+      case 'High': return 'bg-yellow-500 text-black shadow-yellow-100';
+      default: return 'bg-blue-600 text-white shadow-blue-100';
     }
+  };
+
+  const getAlignmentColor = (score: number) => {
+    if (score >= 90) return 'text-green-600 bg-green-50 border-green-100';
+    if (score >= 70) return 'text-blue-600 bg-blue-50 border-blue-100';
+    return 'text-yellow-600 bg-yellow-50 border-yellow-100';
   };
 
   return (
     <div className="group bg-white p-5 border border-gray-100 rounded-3xl hover:border-yellow-400 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
         <div className="flex-1 space-y-3 w-full">
-          <div className="flex items-center space-x-2">
-             <div className={`h-2.5 w-2.5 rounded-full ${action.priority === 'Critical' ? 'animate-pulse bg-red-500' : 'bg-gray-300'}`}></div>
-             <h4 className="text-lg font-black text-black tracking-tight group-hover:text-yellow-600 transition-colors">
-               {action.task}
-             </h4>
+          <div className="flex justify-between items-start">
+            <div className="flex items-center space-x-2">
+               <div className={`h-2.5 w-2.5 rounded-full ${action.priority === 'Critical' ? 'animate-pulse bg-red-500' : 'bg-gray-300'}`}></div>
+               <h4 className="text-lg font-black text-black tracking-tight group-hover:text-yellow-600 transition-colors">
+                 {action.task}
+               </h4>
+            </div>
+            {/* Phase 2: AI Alignment Badge */}
+            {action.alignmentScore !== undefined && (
+              <div className={`flex items-center space-x-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest ${getAlignmentColor(action.alignmentScore)}`}>
+                <ShieldCheck size={10} />
+                <span>Aligned {action.alignmentScore}%</span>
+              </div>
+            )}
           </div>
           
           <div className="flex flex-wrap gap-4 text-sm">
@@ -47,6 +59,18 @@ const ActionCard: React.FC<ActionCardProps> = ({ action }) => {
             </div>
           </div>
 
+          {action.strategicRationale && (
+            <div className="bg-gray-50/80 p-3 rounded-2xl border border-dashed border-gray-200">
+               <div className="flex items-center space-x-2 mb-1">
+                  <Target size={10} className="text-gray-400" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-400">Strategic Rationale</span>
+               </div>
+               <p className="text-[10px] text-gray-600 leading-tight font-medium">
+                 {action.strategicRationale}
+               </p>
+            </div>
+          )}
+
           {action.progress !== undefined && (
             <div className="w-full pt-2">
               <div className="flex justify-between items-center mb-1">
@@ -54,10 +78,7 @@ const ActionCard: React.FC<ActionCardProps> = ({ action }) => {
                 <span className="text-[9px] font-black text-black">{action.progress}%</span>
               </div>
               <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-yellow-500 rounded-full transition-all duration-1000" 
-                  style={{ width: `${action.progress}%` }}
-                />
+                <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${action.progress}%` }} />
               </div>
             </div>
           )}

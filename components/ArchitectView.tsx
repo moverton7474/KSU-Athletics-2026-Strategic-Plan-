@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Users, Calendar, Save, UserPlus, Mail, ChevronRight, LayoutGrid, Target, Clock, ShieldCheck } from 'lucide-react';
-import { StrategicPillar, ActionItem, Collaborator } from '../types';
+import { Plus, Trash2, Users, Calendar, Save, UserPlus, Mail, ChevronRight, LayoutGrid, Target, Clock, ShieldCheck, Globe, Building2 } from 'lucide-react';
+import { StrategicPillar, ActionItem, Collaborator, UserRole } from '../types';
 
 interface ArchitectViewProps {
   pillars: StrategicPillar[];
@@ -9,8 +9,9 @@ interface ArchitectViewProps {
 }
 
 export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillars }) => {
-  const [activeTab, setActiveTab] = useState<'pillars' | 'collaborators'>('pillars');
+  const [activeTab, setActiveTab] = useState<'pillars' | 'collaborators' | 'org'>('pillars');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('Contributor');
   
   const [collaborators, setCollaborators] = useState<Collaborator[]>([
     { id: '1', name: 'Brad Ledford', email: 'brad@ksu.edu', role: 'Contributor', lastActive: '2 hours ago' },
@@ -47,7 +48,14 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
   const sendInvite = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail) return;
-    alert(`Invitation sent to ${inviteEmail}. In a production SaaS, this would send a magic link.`);
+    const newUser: Collaborator = {
+      id: Math.random().toString(),
+      name: inviteEmail.split('@')[0],
+      email: inviteEmail,
+      role: selectedRole,
+      lastActive: 'Invited'
+    };
+    setCollaborators([...collaborators, newUser]);
     setInviteEmail('');
   };
 
@@ -67,7 +75,14 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
             className={`flex items-center space-x-2 pb-4 -mb-4 border-b-2 transition-all ${activeTab === 'collaborators' ? 'border-black text-black font-black' : 'border-transparent text-gray-400 font-bold'}`}
           >
             <Users size={18} />
-            <span className="text-xs uppercase tracking-widest">Collaborators</span>
+            <span className="text-xs uppercase tracking-widest">Access Control</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('org')}
+            className={`flex items-center space-x-2 pb-4 -mb-4 border-b-2 transition-all ${activeTab === 'org' ? 'border-black text-black font-black' : 'border-transparent text-gray-400 font-bold'}`}
+          >
+            <Building2 size={18} />
+            <span className="text-xs uppercase tracking-widest">Org Settings</span>
           </button>
         </div>
         
@@ -81,7 +96,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-5xl mx-auto">
-          {activeTab === 'pillars' ? (
+          {activeTab === 'pillars' && (
             <div className="space-y-8">
               {pillars.map((pillar) => (
                 <div key={pillar.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden group">
@@ -104,124 +119,95 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                           placeholder="Primary Enabling Action / Objective"
                         />
                       </div>
-                      <button onClick={() => deletePillar(pillar.id)} className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all">
-                        <Trash2 size={20} />
-                      </button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Focus Area</label>
-                        <input 
-                          value={pillar.focus}
-                          onChange={(e) => updatePillar(pillar.id, 'focus', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Color Theme</label>
-                        <select 
-                          value={pillar.color}
-                          onChange={(e) => updatePillar(pillar.id, 'color', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold"
-                        >
-                          <option value="bg-yellow-500">KSU Gold</option>
-                          <option value="bg-gray-900">Onyx Black</option>
-                          <option value="bg-blue-600">Strategic Blue</option>
-                          <option value="bg-red-600">Urgent Red</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 px-8 py-4 flex justify-between items-center">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2 text-gray-400">
-                        <Clock size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">{pillar.actions.length} Priorities Defined</span>
-                      </div>
-                    </div>
-                    <button className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-black flex items-center space-x-1">
-                      <span>View All Tactics</span>
-                      <ChevronRight size={14} />
-                    </button>
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'collaborators' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="bg-black text-white rounded-[2.5rem] p-10 relative overflow-hidden">
-                <div className="relative z-10">
-                  <h3 className="text-4xl font-black uppercase tracking-tighter mb-4">Invite Strategy Leaders</h3>
-                  <p className="text-gray-400 text-sm font-bold mb-8 max-w-lg">
-                    Grant administrative or contribution rights to executive staff. They will receive an uplink to the live Strategic Architecture.
+              <div className="bg-black text-white rounded-[2.5rem] p-10 flex justify-between items-center">
+                <div className="max-w-md">
+                  <h3 className="text-4xl font-black uppercase tracking-tighter mb-4">Uplink New Leaders</h3>
+                  <p className="text-gray-400 text-sm font-bold mb-8">
+                    Grant administrative or contribution rights. StratOS is system-centric, not personality-centric.
                   </p>
-                  
-                  <form onSubmit={sendInvite} className="flex max-w-md">
-                    <input 
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="colleague@ksu.edu"
-                      className="flex-1 bg-white/10 border border-white/20 rounded-l-2xl px-6 py-4 outline-none text-white font-bold"
-                    />
-                    <button type="submit" className="bg-yellow-500 text-black px-8 rounded-r-2xl font-black uppercase tracking-widest text-xs hover:bg-yellow-400 transition-colors">
-                      Invite
-                    </button>
+                  <form onSubmit={sendInvite} className="space-y-4">
+                    <div className="flex">
+                      <input 
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="colleague@ksu.edu"
+                        className="flex-1 bg-white/10 border border-white/20 rounded-l-2xl px-6 py-4 outline-none text-white font-bold"
+                      />
+                      <select 
+                        value={selectedRole}
+                        onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                        className="bg-white/10 border-y border-r border-white/20 px-4 text-xs font-black uppercase text-yellow-500 outline-none"
+                      >
+                        <option value="Contributor">Contributor</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Viewer">Viewer</option>
+                      </select>
+                      <button type="submit" className="bg-yellow-500 text-black px-8 rounded-r-2xl font-black uppercase tracking-widest text-xs hover:bg-yellow-400 transition-colors">
+                        Invite
+                      </button>
+                    </div>
                   </form>
                 </div>
-                <div className="absolute top-0 right-0 p-12 text-yellow-500/10">
-                  <UserPlus size={200} />
-                </div>
+                <Users size={120} className="text-yellow-500/10 hidden md:block" />
               </div>
 
               <div className="grid gap-4">
-                <div className="flex justify-between items-center px-6 mb-2">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Collaborators</h4>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Role</span>
-                </div>
                 {collaborators.map((c) => (
-                  <div key={c.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center hover:shadow-md transition-all">
+                  <div key={c.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center">
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400">
                         {c.name.charAt(0)}
                       </div>
                       <div>
                         <h5 className="font-black text-sm text-black">{c.name}</h5>
-                        <div className="flex items-center space-x-2">
-                          <span className={`w-1.5 h-1.5 rounded-full ${c.lastActive === 'Online' ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></span>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{c.lastActive}</p>
-                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{c.lastActive}</p>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center space-x-6">
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                        c.role === 'Admin' ? 'bg-black text-yellow-500' : 'bg-gray-100 text-gray-500'
-                      }`}>
+                    <div className="flex items-center space-x-4">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${c.role === 'Admin' ? 'bg-black text-yellow-500' : 'bg-gray-100 text-gray-400'}`}>
                         {c.role}
-                      </div>
-                      <button className="text-gray-300 hover:text-red-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      </span>
+                      <button onClick={() => setCollaborators(collaborators.filter(u => u.id !== c.id))} className="text-gray-200 hover:text-red-500"><Trash2 size={16} /></button>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="bg-blue-50 border-2 border-blue-100 p-8 rounded-[2rem] flex items-start space-x-6">
-                 <div className="p-3 bg-blue-600 text-white rounded-2xl">
-                    <ShieldCheck size={24} />
-                 </div>
-                 <div>
-                    <h4 className="font-black uppercase text-blue-900 tracking-tighter text-xl">SaaS Roadmap: Permissions</h4>
-                    <p className="text-blue-700/70 text-sm font-bold mt-1">
-                      Soon, you will be able to restrict Brad to the "Giant Killer" pillar while giving Jessica Reo full administrative oversight of "Process Over Personalities".
-                    </p>
-                 </div>
-              </div>
             </div>
+          )}
+
+          {activeTab === 'org' && (
+             <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <h3 className="text-3xl font-black uppercase tracking-tighter mb-6">Tenant Identity</h3>
+                   <div className="grid grid-cols-2 gap-8">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Organization Name</label>
+                        <input className="w-full bg-gray-50 border border-gray-100 rounded-xl px-6 py-4 text-sm font-bold" value="Kennesaw State Athletics" disabled />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Industry Vertical</label>
+                        <input className="w-full bg-gray-50 border border-gray-100 rounded-xl px-6 py-4 text-sm font-bold" value="Collegiate Athletics (Power Four Ascent)" disabled />
+                      </div>
+                   </div>
+                   <div className="mt-10 p-6 bg-yellow-50 rounded-2xl border border-yellow-100">
+                      <div className="flex items-center space-x-3 mb-2">
+                         <Globe size={18} className="text-yellow-600" />
+                         <span className="text-xs font-black uppercase tracking-widest text-yellow-800">SaaS Multi-tenant Endpoint</span>
+                      </div>
+                      <code className="text-[10px] font-mono text-yellow-700 bg-white/50 px-2 py-1 rounded">https://ksu-athletics.stratos.app/api/v1/sync</code>
+                   </div>
+                </div>
+             </div>
           )}
         </div>
       </div>
