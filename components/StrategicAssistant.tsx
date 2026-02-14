@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality, Type, LiveServerMessage, GenerateContentResponse } from '@google/genai';
-import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, AlertCircle, BookOpen } from 'lucide-react';
 import { decode, decodeAudioData, createBlob } from './AudioUtils';
+import { KNOWLEDGE_BASE } from '../knowledgeBase';
 
 interface StrategicAssistantProps {
   onNavigate: (id: number) => void;
@@ -48,16 +49,24 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const config: any = {
-        systemInstruction: `You are the KSU Strategic AI. 
-        MAPPING: 
+        systemInstruction: `You are the KSU Strategic Intelligence Agent. You have access to a 'Second Brain' (Knowledge Base).
+        
+        KNOWLEDGE BASE CONTEXT:
+        - Project: ${KNOWLEDGE_BASE.projectTitle}
+        - Organization: ${KNOWLEDGE_BASE.organization}
+        - Mission: ${KNOWLEDGE_BASE.mission}
+        - Revenue Goals: ${JSON.stringify(KNOWLEDGE_BASE.revenueTargets)}
+        - Philosophies: ${JSON.stringify(KNOWLEDGE_BASE.strategicPhilosophies)}
+        
+        MAPPING & TOOLS: 
         - Pillar #0: Giant Killer Mindset ($10M Revenue pipeline).
         - Pillar #1: Process over Personalities.
         - Pillar #2: Team over Ego.
         - Pillar #3: Reload Mentality.
         - Pillar #4: 360 Holistic Model.
 
-        If user asks to add a task for "Revenue" or "Giant Killer", use pillarId 0.
-        Pillars: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.`,
+        If a user asks about strategy, objectives, or 'why' something is happening, refer to the Knowledge Base.
+        Pillars current state: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.`,
         tools: [{
           functionDeclarations: [
             { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
@@ -67,7 +76,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
       };
 
       const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite-latest',
+        model: 'gemini-3-flash-preview',
         contents: userMsg,
         config
       });
@@ -82,10 +91,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         }
       }
 
-      const aiText = response.text || "Action confirmed and synchronized.";
+      const aiText = response.text || "I have processed your strategic request and updated the cockpit.";
       setChatHistory(prev => [...prev, { role: 'ai', text: aiText }]);
     } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'ai', text: "Service temporarily unavailable." }]);
+      setChatHistory(prev => [...prev, { role: 'ai', text: "Strategic uplink interrupted. Please try again." }]);
     } finally {
       setIsTyping(false);
     }
@@ -152,10 +161,13 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: `You are the KSU Strategic Voice Agent. 
+          systemInstruction: `You are the KSU Strategic Voice Agent. You have a 'Second Brain' of strategic knowledge.
+          SECOND BRAIN: ${JSON.stringify(KNOWLEDGE_BASE)}
+          
           Pillar #0 is 'The Giant Killer Mindset' ($10M objective). 
           Pillar #1 is 'Process Over Personalities'.
-          When a user wants to add a task, call add_action_item with the correct pillarId.`,
+          When asked about Football Tickets or Revenue, utilize the targets from the Second Brain.
+          Call add_action_item when user specifies a task, owner, and priority.`,
           tools: [{
             functionDeclarations: [
               { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
@@ -187,7 +199,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
           onClick={() => setIsOpen(true)}
           className="group flex items-center space-x-3 bg-black text-white px-6 py-4 rounded-full shadow-4xl border-2 border-yellow-500 hover:scale-105 transition-all"
         >
-          <Sparkles className="text-yellow-500 animate-pulse" />
+          <div className="relative">
+            <Sparkles className="text-yellow-500 animate-pulse" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border border-black animate-ping" title="Knowledge Base Connected"></div>
+          </div>
           <span className="font-black uppercase tracking-widest text-[10px]">Strategic AI Agent</span>
         </button>
       ) : (
@@ -200,7 +215,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               </div>
               <div>
                 <h3 className="font-black uppercase text-[10px] tracking-widest leading-none">Strategic AI Hub</h3>
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">Live Intelligence</p>
+                <div className="flex items-center space-x-1.5 mt-1">
+                  <BookOpen size={10} className="text-blue-400" />
+                  <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">Second Brain Active</p>
+                </div>
               </div>
             </div>
             <button 
@@ -216,12 +234,17 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scroll-smooth">
             {chatHistory.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-6">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
+                <div className="w-12 h-12 bg-white border border-gray-100 rounded-full flex items-center justify-center text-gray-400 shadow-sm">
                   <MessageSquare size={20} />
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  Ask me to navigate or add new strategic priorities
-                </p>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-black mb-1">
+                    Uplink Established
+                  </p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 leading-relaxed">
+                    Ask me about the Power Four ascent<br/>or add new tactical objectives.
+                  </p>
+                </div>
               </div>
             )}
             {chatHistory.map((chat, i) => (
@@ -244,7 +267,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-100 p-3 rounded-2xl flex items-center space-x-2">
                   <Loader2 className="w-3 h-3 animate-spin text-yellow-500" />
-                  <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Analyzing Strategy</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Consulting Playbook</span>
                 </div>
               </div>
             )}
@@ -268,7 +291,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                   type="text" 
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Type a command..."
+                  placeholder="Strategic query or command..."
                   className="w-full bg-gray-50 border-2 border-transparent focus:border-yellow-500 rounded-xl px-4 py-3 text-[12px] font-bold outline-none transition-all placeholder:text-gray-400"
                 />
                 <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-600 hover:scale-110 transition-transform">
