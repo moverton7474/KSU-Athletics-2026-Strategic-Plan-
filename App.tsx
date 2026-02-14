@@ -6,8 +6,8 @@ import ActionCard from './components/ActionCard';
 import { PILLARS_DATA } from './constants';
 import { 
   CheckSquare, Flag, ArrowRight, BrainCircuit, FileText, Download, 
-  Table, ClipboardList, CloudUpload, CloudCheck, AlertTriangle, 
-  TrendingUp, TrendingDown, Minus, RefreshCw, Database, Activity, Info
+  Table as TableIcon, ClipboardList, CloudUpload, CloudCheck, AlertTriangle, 
+  TrendingUp, TrendingDown, Minus, RefreshCw, Database, Activity, Info, Copy, Check, ExternalLink, Terminal, Zap
 } from 'lucide-react';
 import { StrategicAssistant } from './components/StrategicAssistant';
 import { TTSPlayer } from './components/TTSPlayer';
@@ -22,9 +22,10 @@ const App: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'local' | 'no-schema'>('idle');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [diagMessage, setDiagMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'info'} | null>(null);
 
   const fetchPlan = useCallback(async () => {
-    // 1. Try Local Storage First
     const local = localStorage.getItem(PLAN_KEY);
     if (local) {
       try {
@@ -37,7 +38,6 @@ const App: React.FC = () => {
       } catch (e) { console.error("Local Storage Parse Error:", e); }
     }
 
-    // 2. Try Supabase
     if (!supabase) {
       setSyncStatus('local');
       return;
@@ -48,12 +48,15 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('strategic_plan').select('data, updated_at').eq('plan_key', PLAN_KEY).single();
       
       if (error) {
-        if (error.code === 'PGRST205') {
-          console.warn("Table 'strategic_plan' missing in Supabase. Run SQL migration.");
+        if (error.code === 'PGRST205' || error.message.includes('not found')) {
           setSyncStatus('no-schema');
           return;
         }
-        if (error.code !== 'PGRST116') throw error; // PGRST116 is just "no record found", which is fine for first run
+        if (error.code === 'PGRST116') {
+          setSyncStatus('idle');
+          return;
+        }
+        throw error;
       }
 
       if (data && data.data) {
@@ -69,116 +72,92 @@ const App: React.FC = () => {
         setSyncStatus('idle');
       }
     } catch (e: any) { 
-      console.error("Fetch Error:", e);
       setSyncStatus('error'); 
     }
   }, []);
 
-  const syncData = useCallback(async (manual = false) => {
-    const dataToSave = pillars.map(p => ({ id: p.id, actions: p.actions }));
-    localStorage.setItem(PLAN_KEY, JSON.stringify(dataToSave));
+  const syncData = useCallback(async (manual = false, dataToSaveOverride?: any) => {
+    const currentData = dataToSaveOverride || pillars.map(p => ({ id: p.id, actions: p.actions }));
+    localStorage.setItem(PLAN_KEY, JSON.stringify(currentData));
     
-    if (!supabase || syncStatus === 'no-schema') {
-      if (manual && syncStatus === 'no-schema') {
-        setDiagMessage("Cannot sync: Database table 'strategic_plan' is missing.");
-        setTimeout(() => setDiagMessage(null), 5000);
-      }
-      return;
-    }
+    if (!supabase || syncStatus === 'no-schema') return;
     
     setSyncStatus('syncing');
     try {
       const { error } = await supabase.from('strategic_plan').upsert({ 
         plan_key: PLAN_KEY, 
-        data: dataToSave, 
+        data: currentData, 
         updated_at: new Date().toISOString() 
       }, { onConflict: 'plan_key' });
       
-      if (error) {
-        if (error.code === 'PGRST205') {
-          setSyncStatus('no-schema');
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
       
       const now = new Date().toLocaleTimeString();
       setLastSaved(now);
       setSyncStatus('saved');
       if (manual) {
-        setDiagMessage(`Manual Sync Successful at ${now}`);
+        setDiagMessage(`Cloud Sync Verified at ${now}`);
         setTimeout(() => setDiagMessage(null), 3000);
       }
     } catch (e: any) { 
-      console.error("Sync Error:", e);
       setSyncStatus('error'); 
     }
   }, [pillars, syncStatus]);
-
-  const runDiagnostics = async () => {
-    if (!supabase) {
-      setDiagMessage("Error: Supabase client not initialized.");
-      return;
-    }
-    setDiagMessage("Running write/read diagnostic...");
-    try {
-      const testKey = `diag_${Date.now()}`;
-      const { error: writeErr } = await supabase.from('strategic_plan').upsert({
-        plan_key: 'connection_test',
-        data: { last_ping: testKey },
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'plan_key' });
-      
-      if (writeErr) {
-        if (writeErr.code === 'PGRST205') throw new Error("Table 'strategic_plan' is missing. Copy SQL from the README.");
-        throw new Error(`Write Failed: ${writeErr.message}`);
-      }
-
-      const { data, error: readErr } = await supabase.from('strategic_plan').select('data').eq('plan_key', 'connection_test').single();
-      if (readErr) throw new Error(`Read Failed: ${readErr.message}`);
-      
-      if (data.data.last_ping === testKey) {
-        setDiagMessage("Success: Database Write/Read verified.");
-        setSyncStatus('saved');
-      } else {
-        setDiagMessage("Warning: Write succeeded but data mismatch on read.");
-      }
-    } catch (e: any) {
-      setDiagMessage(`Diagnostic Failed: ${e.message}`);
-      if (e.message.includes('missing')) setSyncStatus('no-schema');
-    }
-    setTimeout(() => setDiagMessage(null), 5000);
-  };
 
   useEffect(() => {
     fetchPlan();
   }, [fetchPlan]);
 
   useEffect(() => {
-    // Only auto-sync if we haven't detected a missing schema
-    if (syncStatus !== 'no-schema') {
-      const timer = setTimeout(() => syncData(false), 5000);
+    if (syncStatus !== 'no-schema' && syncStatus !== 'syncing' && syncStatus !== 'idle') {
+      const timer = setTimeout(() => syncData(false), 10000);
       return () => clearTimeout(timer);
     }
   }, [pillars, syncData, syncStatus]);
 
-  const activePillar = pillars.find(p => p.id === activePillarId) || pillars[0];
+  const copySQL = () => {
+    const sql = `-- Run in SQL Editor
+CREATE TABLE IF NOT EXISTS public.strategic_plan (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan_key TEXT UNIQUE NOT NULL,
+    data JSONB NOT NULL DEFAULT '[]',
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.strategic_plan ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable all access for anon users" ON public.strategic_plan FOR ALL USING (true) WITH CHECK (true);`;
+    navigator.clipboard.writeText(sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleNavigate = useCallback((id: number) => {
-    setActivePillarId(Math.max(0, Math.min(pillars.length - 1, id)));
-  }, [pillars.length]);
+    setActivePillarId(id);
+    setNotification({ message: `Navigated to Pillar #${id + 1}`, type: 'info' });
+    setTimeout(() => setNotification(null), 3000);
+  }, []);
 
-  const handleAddAction = useCallback((pillarId: number, newAction: Partial<ActionItem>) => {
+  const handleAddAction = useCallback((pillarId: number, newAction: any) => {
     const item: ActionItem = {
       id: Math.random().toString(36).substr(2, 9),
       task: newAction.task || "New Initiative",
       owner: newAction.owner || "Staff",
       priority: (newAction.priority as any) || "Medium",
-      source: "Strategic Assistant",
-      status: "Planning"
+      source: "Strategic AI",
+      status: "Added via Voice"
     };
-    setPillars(prev => prev.map(p => p.id === pillarId ? { ...p, actions: [item, ...p.actions] } : p));
-  }, []);
+
+    setPillars(prev => {
+      const updated = prev.map(p => p.id === pillarId ? { ...p, actions: [item, ...p.actions] } : p);
+      // Trigger instant sync for reliability
+      const syncPayload = updated.map(up => ({ id: up.id, actions: up.actions }));
+      syncData(false, syncPayload);
+      return updated;
+    });
+
+    setNotification({ message: `Action added: ${item.task}`, type: 'success' });
+    setTimeout(() => setNotification(null), 5000);
+  }, [syncData]);
 
   const handleDeleteAction = useCallback((pillarId: number, taskName: string) => {
     setPillars(prev => prev.map(p => p.id === pillarId ? { ...p, actions: p.actions.filter(a => !a.task.toLowerCase().includes(taskName.toLowerCase())) } : p));
@@ -188,12 +167,24 @@ const App: React.FC = () => {
     setPillars(prev => prev.map(p => p.id === pillarId ? { ...p, actions: p.actions.map(a => a.task.toLowerCase().includes(taskName.toLowerCase()) ? { ...a, priority: newPriority as any } : a) } : p));
   }, []);
 
+  const activePillar = pillars.find(p => p.id === activePillarId) || pillars[0];
+
   return (
-    <div className="flex flex-col min-h-screen bg-white text-gray-900 overflow-x-hidden selection:bg-yellow-500 selection:text-black print:bg-white">
+    <div className="flex flex-col min-h-screen bg-white text-gray-900 overflow-x-hidden selection:bg-yellow-500 selection:text-black">
+      
+      {/* Toast Notification */}
+      {notification && (
+        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] px-6 py-4 rounded-2xl shadow-4xl flex items-center space-x-3 border-2 animate-in slide-in-from-top-4 duration-500 ${
+          notification.type === 'success' ? 'bg-black text-yellow-500 border-yellow-500' : 'bg-gray-100 text-black border-gray-200'
+        }`}>
+          <Zap size={20} className={notification.type === 'success' ? 'animate-pulse' : ''} />
+          <span className="font-black uppercase tracking-widest text-[10px]">{notification.message}</span>
+        </div>
+      )}
+
       <div className="print:hidden">
         <Header />
         
-        {/* Connection Bar */}
         <div className="bg-gray-100 px-6 py-2 flex flex-col md:flex-row justify-between items-center border-b border-gray-200 gap-2">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-gray-500">
@@ -201,8 +192,8 @@ const App: React.FC = () => {
               <span>Project ID: <span className="text-black">pygjtypiblbkuvhltigv</span></span>
             </div>
             {diagMessage && (
-              <div className="flex items-center space-x-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full animate-in fade-in slide-in-from-left-4">
-                <Activity className="w-3 h-3 animate-pulse" />
+              <div className="flex items-center space-x-2 text-[10px] font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                <CloudCheck className="w-3 h-3" />
                 <span>{diagMessage}</span>
               </div>
             )}
@@ -211,114 +202,86 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
               {syncStatus === 'syncing' && <><CloudUpload className="w-3 h-3 text-blue-500 animate-pulse" /> <span className="text-blue-600">Syncing...</span></>}
-              {syncStatus === 'saved' && <><CloudCheck className="w-3 h-3 text-green-500" /> <span className="text-green-600">Cloud Synced {lastSaved && `(${lastSaved})`}</span></>}
-              {syncStatus === 'local' && <><AlertTriangle className="w-3 h-3 text-yellow-600" /> <span className="text-yellow-700">Local Mode</span></>}
-              {syncStatus === 'no-schema' && <><AlertTriangle className="w-3 h-3 text-red-500 animate-pulse" /> <span className="text-red-600">Table Missing (Check SQL)</span></>}
-              {syncStatus === 'error' && <><AlertTriangle className="w-3 h-3 text-red-600" /> <span className="text-red-700">Sync Error</span></>}
+              {syncStatus === 'saved' && <><CloudCheck className="w-3 h-3 text-green-500" /> <span className="text-green-600">Synced {lastSaved && `(${lastSaved})`}</span></>}
+              {syncStatus === 'no-schema' && <><AlertTriangle className="w-3 h-3 text-red-500" /> <span className="text-red-600 font-black tracking-widest">DB MISSING</span></>}
+              {syncStatus === 'idle' && <><Database className="w-3 h-3 text-gray-400" /> <span className="text-gray-500">Connected</span></>}
             </div>
-            
             <div className="h-4 w-px bg-gray-300"></div>
-            
-            <button 
-              onClick={() => syncData(true)}
-              disabled={syncStatus === 'no-schema'}
-              className={`flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${syncStatus === 'no-schema' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-black'}`}
-              title={syncStatus === 'no-schema' ? "Database table missing" : "Force database write"}
-            >
+            <button onClick={() => { fetchPlan(); syncData(true); }} className="flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-black">
               <RefreshCw className={`w-3 h-3 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-              <span>Force Sync</span>
-            </button>
-            
-            <button 
-              onClick={runDiagnostics}
-              className="flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-black transition-colors border-l border-gray-300 pl-4"
-              title="Test Read/Write Permissions"
-            >
-              <Activity className="w-3 h-3" />
-              <span>Run Diag</span>
+              <span>Sync</span>
             </button>
           </div>
         </div>
 
-        {/* Missing Schema Alert Banner */}
         {syncStatus === 'no-schema' && (
-          <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-500">
-            <div className="flex items-center space-x-3">
-              <Info className="w-5 h-5 flex-shrink-0" />
-              <p className="text-xs font-bold uppercase tracking-widest">
-                Database Table Missing: Run the SQL migration in your Supabase dashboard to enable cloud saving.
-              </p>
+          <div className="bg-black text-white px-6 py-8">
+            <div className="max-w-4xl mx-auto border-4 border-red-500 rounded-[2.5rem] p-8 bg-zinc-900 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center space-x-4">
+                <AlertTriangle className="text-red-500" size={40} />
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-widest">Database Offline</h2>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Run the SQL migration in Supabase to enable cloud sync.</p>
+                </div>
+              </div>
+              <button onClick={copySQL} className="bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all flex items-center space-x-3">
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+                <span>{copied ? 'SQL COPIED' : 'COPY SQL'}</span>
+              </button>
             </div>
-            <button 
-              onClick={runDiagnostics}
-              className="bg-white text-red-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter hover:bg-gray-100 transition-colors"
-            >
-              Check Again
-            </button>
           </div>
         )}
       </div>
 
       <main className="flex flex-1 flex-col md:flex-row max-w-[1920px] mx-auto w-full relative">
-        <div className="print:hidden">
-          <Sidebar pillars={pillars} activeId={activePillarId} onSelect={setActivePillarId} />
-        </div>
-
-        <div className="flex-1 p-4 md:p-10 lg:p-16 animate-in fade-in slide-in-from-right-8 duration-1000 print:p-0">
+        <Sidebar pillars={pillars} activeId={activePillarId} onSelect={setActivePillarId} />
+        
+        <div className="flex-1 p-4 md:p-10 lg:p-12">
           <div className="max-w-6xl mx-auto space-y-12">
-            
-            {/* KPI Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {activePillar.metrics.map((m, i) => (
-                <div key={i} className="bg-white border-2 border-gray-100 p-6 rounded-[2rem] hover:border-yellow-500 transition-all duration-500 group">
+                <div key={i} className="bg-white border-2 border-gray-100 p-6 rounded-[2rem] hover:border-yellow-500 transition-all duration-500 shadow-sm">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{m.label}</span>
-                    <div className={`p-1.5 rounded-full ${m.trend === 'up' ? 'bg-green-100 text-green-600' : m.trend === 'down' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
-                      {m.trend === 'up' ? <TrendingUp size={12} /> : m.trend === 'down' ? <TrendingDown size={12} /> : <Minus size={12} />}
+                    <div className={`p-1.5 rounded-full ${m.trend === 'up' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                      {m.trend === 'up' ? <TrendingUp size={12} /> : <Minus size={12} />}
                     </div>
                   </div>
                   <div className="flex items-baseline space-x-2">
                     <h4 className="text-3xl font-black text-black">{m.value}</h4>
-                    <span className={`text-[10px] font-bold ${m.trend === 'up' ? 'text-green-600' : 'text-gray-400'}`}>{m.change}</span>
+                    <span className="text-[10px] font-bold text-gray-400">{m.change}</span>
                   </div>
                 </div>
               ))}
             </div>
 
             <section className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
-                <div className="flex items-center space-x-4">
-                  <span className={`inline-flex items-center px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white ${activePillar.color === 'bg-yellow-500' ? 'bg-black' : 'bg-yellow-600'}`}>
-                    Strategic Pillar #{activePillar.id + 1}
-                  </span>
-                  <TTSPlayer title={activePillar.title} text={activePillar.description} />
-                </div>
+              <div className="flex items-center space-x-4 mb-6">
+                <span className={`inline-flex items-center px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white ${activePillar.color === 'bg-yellow-500' ? 'bg-black' : 'bg-yellow-600'}`}>
+                  Pillar #{activePillar.id + 1}
+                </span>
+                <TTSPlayer title={activePillar.title} text={activePillar.description} />
               </div>
 
-              <h2 className="text-6xl md:text-8xl font-black text-black uppercase tracking-tighter leading-[0.85] mb-8">
+              <h2 className="text-5xl md:text-7xl font-black text-black uppercase tracking-tighter leading-[0.85] mb-8">
                 {activePillar.title}
               </h2>
 
-              <div className="bg-black text-white rounded-[3rem] p-10 shadow-4xl relative overflow-hidden group border-t-[16px] border-yellow-500 transition-all hover:translate-y-[-4px] duration-700">
-                <div className="relative z-10">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500 mb-6">Primary Power Objective</h3>
-                  <p className="text-4xl md:text-6xl font-black mb-8 tracking-tighter leading-[0.9] text-white">
-                    {activePillar.enablingAction}
-                  </p>
-                  <p className="text-gray-400 text-lg font-medium italic border-l-4 border-yellow-500/30 pl-6 py-2 max-w-2xl">
-                    "{activePillar.description}"
-                  </p>
-                </div>
+              <div className="bg-black text-white rounded-[2.5rem] p-8 border-t-[12px] border-yellow-500 shadow-4xl">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500 mb-4">Core Objective</h3>
+                <p className="text-3xl md:text-5xl font-black tracking-tighter leading-[0.9]">
+                  {activePillar.enablingAction}
+                </p>
               </div>
             </section>
 
-            <section className="space-y-8">
-              <div className="flex justify-between items-end border-b-4 border-gray-50 pb-8">
-                <h3 className="text-3xl font-black text-black uppercase tracking-tighter">Tactical Priorities</h3>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{activePillar.actions.length} Total Targets</span>
+            <section className="space-y-6">
+              <div className="flex justify-between items-end border-b-2 border-gray-50 pb-4">
+                <h3 className="text-2xl font-black text-black uppercase tracking-tighter">Tactical Priorities</h3>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{activePillar.actions.length} Items</span>
               </div>
-              <div className="grid gap-6">
-                {activePillar.actions.map((action, idx) => (
+              <div className="grid gap-4">
+                {activePillar.actions.map((action) => (
                   <ActionCard key={action.id} action={action} />
                 ))}
               </div>
@@ -333,6 +296,7 @@ const App: React.FC = () => {
         onAddAction={handleAddAction}
         onDeleteAction={handleDeleteAction}
         onUpdatePriority={handleUpdatePriority}
+        syncStatus={syncStatus}
       />
     </div>
   );
