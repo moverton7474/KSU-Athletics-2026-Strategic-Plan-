@@ -10,6 +10,13 @@ export interface ActionItem {
   status: string;
 }
 
+export interface Metric {
+  label: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down' | 'stable';
+}
+
 export interface StrategicPillar {
   id: number;
   title: string;
@@ -19,4 +26,5 @@ export interface StrategicPillar {
   description: string;
   color: string;
   actions: ActionItem[];
+  metrics: Metric[];
 }

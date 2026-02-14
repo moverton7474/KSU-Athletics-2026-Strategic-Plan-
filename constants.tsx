@@ -12,6 +12,11 @@ export const PILLARS_DATA: StrategicPillar[] = [
     enablingAction: '$10M Revenue Pipeline Growth',
     description: 'Adopting an aggressive, high-stakes approach to close the $5.5M earned revenue gap.',
     color: 'bg-yellow-500',
+    metrics: [
+      { label: 'Revenue Gap', value: '$5.5M', change: '-12%', trend: 'up' },
+      { label: 'Pipeline Value', value: '$10.2M', change: '+24%', trend: 'up' },
+      { label: 'Sponsorships', value: '$2.1M', change: '+5%', trend: 'stable' }
+    ],
     actions: [
       {
         id: 'p0-a1',
@@ -36,14 +41,6 @@ export const PILLARS_DATA: StrategicPillar[] = [
         source: "Huron Report",
         priority: "Critical",
         status: "Ongoing"
-      },
-      {
-        id: 'p0-a4',
-        task: "Monetize East District/Convocation Naming Rights",
-        owner: "Brad Ledford",
-        source: "Huron Opportunity",
-        priority: "Medium",
-        status: "Inventory Phase"
       }
     ]
   },
@@ -55,6 +52,11 @@ export const PILLARS_DATA: StrategicPillar[] = [
     enablingAction: '"Lean Into Change" Campaign',
     description: 'Ensuring brand strength is built on systems rather than the influence of any single individual.',
     color: 'bg-gray-900',
+    metrics: [
+      { label: 'Policy Compliance', value: '94%', change: '+8%', trend: 'up' },
+      { label: 'Operational Efficiency', value: '78%', change: '+2%', trend: 'stable' },
+      { label: 'System Adoption', value: '62%', change: '+15%', trend: 'up' }
+    ],
     actions: [
       {
         id: 'p1-a1',
@@ -79,14 +81,6 @@ export const PILLARS_DATA: StrategicPillar[] = [
         source: "Executive Retreat Agenda",
         priority: "Critical",
         status: "Tuesday Retreat"
-      },
-      {
-        id: 'p1-a4',
-        task: "Initiate CFO Search & Interim Protocol",
-        owner: "Jessica Reo (Interim)",
-        source: "90-Day Sprint",
-        priority: "Critical",
-        status: "Week 1"
       }
     ]
   },
@@ -98,6 +92,11 @@ export const PILLARS_DATA: StrategicPillar[] = [
     enablingAction: '"Practice of Extreme Humility"',
     description: 'Prioritizing collective success and implementing a "Student-Athlete First" decision matrix.',
     color: 'bg-yellow-500',
+    metrics: [
+      { label: 'SA Satisfaction', value: '4.8/5', change: '+0.2', trend: 'up' },
+      { label: 'Internal Net Promoter', value: '72', change: '+12', trend: 'up' },
+      { label: 'Meeting Efficiency', value: '88%', change: '-5%', trend: 'down' }
+    ],
     actions: [
       {
         id: 'p2-a1',
@@ -114,22 +113,6 @@ export const PILLARS_DATA: StrategicPillar[] = [
         source: "Execution Cadence",
         priority: "High",
         status: "Immediate"
-      },
-      {
-        id: 'p2-a3',
-        task: "Eliminate '35 Bubbles' (AD Time Allocation)",
-        owner: "Tierra Thompson",
-        source: "Time Allocation Analysis",
-        priority: "Medium",
-        status: "Restructuring"
-      },
-      {
-        id: 'p2-a4',
-        task: "Align 'President’s Parliament' Funding Requests",
-        owner: "Milton Overton",
-        source: "Retreat Wrap-Up",
-        priority: "High",
-        status: "Strategic"
       }
     ]
   },
@@ -141,6 +124,11 @@ export const PILLARS_DATA: StrategicPillar[] = [
     enablingAction: 'Talent Acquisition & Retention Model',
     description: 'Robust succession planning and retention strategies for the transfer portal era.',
     color: 'bg-gray-900',
+    metrics: [
+      { label: 'Portal Retention', value: '91%', change: '+4%', trend: 'up' },
+      { label: 'NIL Pool Reach', value: '$4.2M', change: '+$1.1M', trend: 'up' },
+      { label: 'Staff Retention', value: '85%', change: '-2%', trend: 'stable' }
+    ],
     actions: [
       {
         id: 'p3-a1',
@@ -157,22 +145,6 @@ export const PILLARS_DATA: StrategicPillar[] = [
         source: "AI Strategy",
         priority: "High",
         status: "Software Eval"
-      },
-      {
-        id: 'p3-a3',
-        task: "Secure $8-10M NIL Pool Target",
-        owner: "Owls Collective / Dev",
-        source: "Power 4 Benchmark",
-        priority: "High",
-        status: "Ongoing"
-      },
-      {
-        id: 'p3-a4',
-        task: "Standardize Sport Supervision Program",
-        owner: "Jessica Reo",
-        source: "Huron Interview Themes",
-        priority: "Medium",
-        status: "Drafting"
       }
     ]
   },
@@ -184,6 +156,11 @@ export const PILLARS_DATA: StrategicPillar[] = [
     enablingAction: 'Wellstar Champions Complex',
     description: 'Building a state-of-the-art support system for health, human performance, and academics.',
     color: 'bg-yellow-500',
+    metrics: [
+      { label: 'SA GPA', value: '3.42', change: '+0.05', trend: 'up' },
+      { label: 'Wellstar Usage', value: '92%', change: '+14%', trend: 'up' },
+      { label: 'Complex Completion', value: '68%', change: '+5%', trend: 'stable' }
+    ],
     actions: [
       {
         id: 'p4-a1',
@@ -200,22 +177,6 @@ export const PILLARS_DATA: StrategicPillar[] = [
         source: "Huron Expense Gap",
         priority: "High",
         status: "Funding Needed"
-      },
-      {
-        id: 'p4-a3',
-        task: "Complete Mickey Dunn Stadium Renovation",
-        owner: "Ops / Facilities",
-        source: "Capital Projects",
-        priority: "High",
-        status: "Construction"
-      },
-      {
-        id: 'p4-a4',
-        task: "Initiate Athletics-Specific Master Plan",
-        owner: "Facilities Director",
-        source: "Huron Rec",
-        priority: "Medium",
-        status: "RFP Stage"
       }
     ]
   }
