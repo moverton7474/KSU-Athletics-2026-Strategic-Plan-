@@ -23,177 +23,205 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
   const sessionRef = useRef<any>(null);
 
   const startSession = async () => {
+    if (isConnecting || isActive) return;
+    
     setIsConnecting(true);
-    // Use directly as per guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-    outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    try {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    const sessionPromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-      callbacks: {
-        onopen: () => {
-          setIsConnecting(false);
-          setIsActive(true);
-          
-          const source = audioContextRef.current!.createMediaStreamSource(stream);
-          const scriptProcessor = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
-          
-          scriptProcessor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
-            const pcmBlob = createBlob(inputData);
-            sessionPromise.then(session => {
-              if (sessionRef.current) {
-                session.sendRealtimeInput({ media: pcmBlob });
-              }
-            });
-          };
-          
-          source.connect(scriptProcessor);
-          scriptProcessor.connect(audioContextRef.current!.destination);
-        },
-        onmessage: async (message: LiveServerMessage) => {
-          // Handle Audio Out
-          const audioBase64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-          // Fix for line 104: Use typeof check to narrow unknown/undefined type to string.
-          if (typeof audioBase64 === 'string' && outputAudioContextRef.current) {
-            const ctx = outputAudioContextRef.current;
-            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-            const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start(nextStartTimeRef.current);
-            nextStartTimeRef.current += buffer.duration;
-            sourcesRef.current.add(source);
-            source.onended = () => sourcesRef.current.delete(source);
-          }
-
-          // Handle Interruptions
-          if (message.serverContent?.interrupted) {
-            sourcesRef.current.forEach(s => s.stop());
-            sourcesRef.current.clear();
-            nextStartTimeRef.current = 0;
-          }
-
-          // Handle Transcriptions
-          if (message.serverContent?.inputTranscription) {
-             setTranscription(prev => prev + message.serverContent!.inputTranscription!.text);
-          }
-          if (message.serverContent?.turnComplete) {
-            setTranscription('');
-          }
-
-          // Handle Tool Calls
-          if (message.toolCall) {
-            for (const fc of message.toolCall.functionCalls) {
-              let result = "Action performed successfully.";
-              try {
-                if (fc.name === 'navigate_to_pillar') {
-                  onNavigate(Number(fc.args.pillarId));
-                } else if (fc.name === 'add_action_item') {
-                  onAddAction(Number(fc.args.pillarId), {
-                    task: fc.args.task,
-                    owner: fc.args.owner,
-                    source: fc.args.source || "AI Assisted",
-                    priority: fc.args.priority,
-                    status: fc.args.status || "Planned"
-                  });
-                } else if (fc.name === 'delete_action_item') {
-                  onDeleteAction(Number(fc.args.pillarId), fc.args.taskName);
-                }
-              } catch (e) {
-                result = "Error executing command: " + (e as Error).message;
-              }
+      const sessionPromise = ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        callbacks: {
+          onopen: () => {
+            setIsConnecting(false);
+            setIsActive(true);
+            
+            if (audioContextRef.current) {
+              const source = audioContextRef.current.createMediaStreamSource(stream);
+              const scriptProcessor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
               
-              sessionPromise.then(session => {
-                session.sendToolResponse({
-                  functionResponses: { id: fc.id, name: fc.name, response: { result } }
+              scriptProcessor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmBlob = createBlob(inputData);
+                // Fix: Solely rely on sessionPromise resolves to prevent race conditions and stale closures
+                sessionPromise.then(session => {
+                  session.sendRealtimeInput({ media: pcmBlob });
                 });
+              };
+              
+              source.connect(scriptProcessor);
+              scriptProcessor.connect(audioContextRef.current.destination);
+            }
+          },
+          onmessage: async (message: LiveServerMessage) => {
+            const audioBase64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            if (typeof audioBase64 === 'string' && outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
+              const ctx = outputAudioContextRef.current;
+              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
+              const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
+              const source = ctx.createBufferSource();
+              source.buffer = buffer;
+              source.connect(ctx.destination);
+              source.start(nextStartTimeRef.current);
+              nextStartTimeRef.current += buffer.duration;
+              sourcesRef.current.add(source);
+              source.onended = () => sourcesRef.current.delete(source);
+            }
+
+            if (message.serverContent?.interrupted) {
+              sourcesRef.current.forEach(s => {
+                try { s.stop(); } catch(e) {}
               });
+              sourcesRef.current.clear();
+              nextStartTimeRef.current = 0;
             }
-          }
-        },
-        onclose: () => stopSession(),
-        onerror: (e) => console.error("Live API Error:", e),
-      },
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
-        },
-        systemInstruction: `You are the KSU Athletics Strategic AI Assistant. 
-        You help staff navigate the 'Taking Flight to 2026' dashboard and manage strategic priorities. 
-        Current Pillars: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.
-        
-        CRITICAL VOICE COMMAND INSTRUCTIONS:
-        1. Navigate: Allow users to switch views (e.g., "Show me the Giant Killer mindset").
-        2. Delete: Remove items by name.
-        3. Add Tactical Action Items: 
-           - When a user wants to add a new priority/task, YOU MUST GATHER: Task Name, Owner, and Priority.
-           - IF ANY ARE MISSING, DO NOT CALL THE TOOL. Instead, ask the user for the missing information (e.g., "Who will own this task?", "What is the priority: Critical, High, or Medium?").
-           - Once you have the Task, Owner, and Priority, call the 'add_action_item' tool.
-        
-        Be professional, energetic, and focused on Power Four excellence. Always confirm actions with a positive tone.`,
-        tools: [{
-          functionDeclarations: [
-            {
-              name: 'navigate_to_pillar',
-              description: 'Changes the dashboard view to a specific strategic pillar.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: { pillarId: { type: Type.INTEGER, description: 'ID of the pillar (0: Giant Killer, 1: Process, 2: Team, 3: Reload, 4: 360 Model)' } },
-                required: ['pillarId']
-              }
-            },
-            {
-              name: 'add_action_item',
-              description: 'Adds a new tactical priority to a specific strategic pillar. Requires task name, owner, and priority level.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  pillarId: { type: Type.INTEGER, description: 'The ID of the strategic pillar (0-4).' },
-                  task: { type: Type.STRING, description: 'Short, descriptive title of the tactical priority.' },
-                  owner: { type: Type.STRING, description: 'The staff member or department responsible for execution.' },
-                  source: { type: Type.STRING, description: 'Origin of the requirement (defaults to AI Assisted).' },
-                  priority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'], description: 'Priority level.' },
-                  status: { type: Type.STRING, description: 'Current status or timeline.' }
-                },
-                required: ['pillarId', 'task', 'owner', 'priority']
-              }
-            },
-            {
-              name: 'delete_action_item',
-              description: 'Deletes an action item by name from a strategic pillar.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  pillarId: { type: Type.INTEGER, description: 'The ID of the strategic pillar (0-4).' },
-                  taskName: { type: Type.STRING, description: 'Exact or close match of the task name to delete.' }
-                },
-                required: ['pillarId', 'taskName']
+
+            // Fix: Explicitly check for transcription and cast text to string to resolve 'unknown' type error
+            const transcriptText = message.serverContent?.inputTranscription?.text;
+            if (transcriptText) {
+               setTranscription(prev => prev + (transcriptText as string));
+            }
+            if (message.serverContent?.turnComplete) {
+              setTranscription('');
+            }
+
+            if (message.toolCall) {
+              for (const fc of message.toolCall.functionCalls) {
+                let result = "Action performed successfully.";
+                try {
+                  if (fc.name === 'navigate_to_pillar') {
+                    onNavigate(Number(fc.args.pillarId));
+                  } else if (fc.name === 'add_action_item') {
+                    onAddAction(Number(fc.args.pillarId), {
+                      task: fc.args.task,
+                      owner: fc.args.owner,
+                      source: fc.args.source || "AI Assisted",
+                      priority: fc.args.priority,
+                      status: fc.args.status || "Planned"
+                    });
+                  } else if (fc.name === 'delete_action_item') {
+                    onDeleteAction(Number(fc.args.pillarId), fc.args.taskName);
+                  }
+                } catch (e) {
+                  result = "Error executing command: " + (e as Error).message;
+                }
+                
+                sessionPromise.then(session => {
+                  session.sendToolResponse({
+                    functionResponses: { id: fc.id, name: fc.name, response: { result } }
+                  });
+                });
               }
             }
-          ]
-        }]
-      }
-    });
-    
-    sessionRef.current = await sessionPromise;
+          },
+          onclose: () => stopSession(),
+          onerror: (e) => {
+            console.error("Live API Error:", e);
+            stopSession();
+          },
+        },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+          },
+          systemInstruction: `You are the KSU Athletics Strategic AI Assistant. 
+          You help staff navigate the 'Taking Flight to 2026' dashboard and manage strategic priorities. 
+          Current Pillars: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.
+          
+          CRITICAL VOICE COMMAND INSTRUCTIONS:
+          1. Navigate: Allow users to switch views (e.g., "Show me the Giant Killer mindset").
+          2. Delete: Remove items by name.
+          3. Add Tactical Action Items: 
+             - When a user wants to add a new priority/task, YOU MUST GATHER: Task Name, Owner, and Priority.
+             - IF ANY ARE MISSING, DO NOT CALL THE TOOL. Instead, ask the user for the missing information.
+             - Once you have the Task, Owner, and Priority, call the 'add_action_item' tool.
+          
+          Be professional, energetic, and focused on Power Four excellence. Always confirm actions with a positive tone.`,
+          tools: [{
+            functionDeclarations: [
+              {
+                name: 'navigate_to_pillar',
+                description: 'Changes the dashboard view to a specific strategic pillar.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: { pillarId: { type: Type.INTEGER, description: 'ID of the pillar' } },
+                  required: ['pillarId']
+                }
+              },
+              {
+                name: 'add_action_item',
+                description: 'Adds a new tactical priority.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    pillarId: { type: Type.INTEGER },
+                    task: { type: Type.STRING },
+                    owner: { type: Type.STRING },
+                    source: { type: Type.STRING },
+                    priority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'] },
+                    status: { type: Type.STRING }
+                  },
+                  required: ['pillarId', 'task', 'owner', 'priority']
+                }
+              },
+              {
+                name: 'delete_action_item',
+                description: 'Deletes an action item by name.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    pillarId: { type: Type.INTEGER },
+                    taskName: { type: Type.STRING }
+                  },
+                  required: ['pillarId', 'taskName']
+                }
+              }
+            ]
+          }]
+        }
+      });
+      
+      sessionRef.current = await sessionPromise;
+    } catch (err) {
+      console.error("Failed to start session:", err);
+      stopSession();
+    }
   };
 
   const stopSession = () => {
     setIsActive(false);
     setIsConnecting(false);
-    if (sessionRef.current) sessionRef.current.close();
-    sessionRef.current = null;
-    audioContextRef.current?.close();
-    outputAudioContextRef.current?.close();
-    sourcesRef.current.forEach(s => s.stop());
+    
+    if (sessionRef.current) {
+      try { sessionRef.current.close(); } catch(e) {}
+      sessionRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== 'closed') {
+        try { audioContextRef.current.close(); } catch(e) {}
+      }
+      audioContextRef.current = null;
+    }
+
+    if (outputAudioContextRef.current) {
+      if (outputAudioContextRef.current.state !== 'closed') {
+        try { outputAudioContextRef.current.close(); } catch(e) {}
+      }
+      outputAudioContextRef.current = null;
+    }
+    
+    sourcesRef.current.forEach(s => {
+      try { s.stop(); } catch(e) {}
+    });
     sourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
   };
 
   return (

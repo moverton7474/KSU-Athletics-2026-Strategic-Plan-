@@ -2,6 +2,7 @@
 import { ReactNode } from 'react';
 
 export interface ActionItem {
+  id: string;
   task: string;
   owner: string;
   source: string;

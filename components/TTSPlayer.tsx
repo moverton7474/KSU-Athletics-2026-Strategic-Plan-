@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { Volume2, Loader2, Pause } from 'lucide-react';
 import { decode, decodeAudioData } from './AudioUtils';
@@ -12,19 +12,31 @@ interface TTSPlayerProps {
 export const TTSPlayer: React.FC<TTSPlayerProps> = ({ text, title }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const audioContextRef = React.useRef<AudioContext | null>(null);
-  const sourceRef = React.useRef<AudioBufferSourceNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  const cleanup = () => {
+    if (sourceRef.current) {
+      try { sourceRef.current.stop(); } catch(e) {}
+      sourceRef.current = null;
+    }
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== 'closed') {
+        try { audioContextRef.current.close(); } catch(e) {}
+      }
+      audioContextRef.current = null;
+    }
+    setIsPlaying(false);
+  };
 
   const playTTS = async () => {
     if (isPlaying) {
-      sourceRef.current?.stop();
-      setIsPlaying(false);
+      cleanup();
       return;
     }
 
     setIsLoading(true);
     try {
-      // Use directly as per guidelines
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Deliver a strategic executive briefing on the following pillar titled "${title}": ${text}. Keep it professional and authoritative.`;
       
@@ -42,7 +54,6 @@ export const TTSPlayer: React.FC<TTSPlayerProps> = ({ text, title }) => {
       });
 
       const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      // Fix: Use typeof check to narrow potential unknown/undefined type to string.
       if (typeof audioBase64 === 'string') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const buffer = await decodeAudioData(decode(audioBase64), audioContextRef.current, 24000, 1);
@@ -50,13 +61,21 @@ export const TTSPlayer: React.FC<TTSPlayerProps> = ({ text, title }) => {
         const source = audioContextRef.current.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContextRef.current.destination);
-        source.onended = () => setIsPlaying(false);
+        source.onended = () => {
+          setIsPlaying(false);
+          // Auto cleanup after play
+          if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+             audioContextRef.current.close().catch(() => {});
+          }
+          audioContextRef.current = null;
+        };
         sourceRef.current = source;
         source.start();
         setIsPlaying(true);
       }
     } catch (e) {
       console.error("TTS Error:", e);
+      cleanup();
     } finally {
       setIsLoading(false);
     }

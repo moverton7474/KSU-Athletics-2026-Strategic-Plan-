@@ -14,6 +14,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
     color: 'bg-yellow-500',
     actions: [
       {
+        id: 'p0-a1',
         task: "Launch Revenue AI Engine (Dynamic Pricing)",
         owner: "Brad Ledford",
         source: "Deep Dive Playbook #1",
@@ -21,6 +22,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Immediate (Weeks 2-4)"
       },
       {
+        id: 'p0-a2',
         task: "Execute National Broadcast Sponsorship Model",
         owner: "Brad Ledford / Rob Aycock",
         source: "Sponsorship Plan",
@@ -28,6 +30,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Planning"
       },
       {
+        id: 'p0-a3',
         task: "Close $2.7M Contributions Gap (Owls Fund)",
         owner: "Stephanie Clemmons",
         source: "Huron Report",
@@ -35,6 +38,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Ongoing"
       },
       {
+        id: 'p0-a4',
         task: "Monetize East District/Convocation Naming Rights",
         owner: "Brad Ledford",
         source: "Huron Opportunity",
@@ -53,6 +57,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
     color: 'bg-gray-900',
     actions: [
       {
+        id: 'p1-a1',
         task: "Implement Operations Resilience Agent (AI)",
         owner: "Jessica Reo",
         source: "Deep Dive Playbook #2",
@@ -60,6 +65,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Pilot Phase"
       },
       {
+        id: 'p1-a2',
         task: "Deploy Policy RAG Chatbot (Compliance/Travel)",
         owner: "Matt Iwanski / Jessica Reo",
         source: "AI Integration Strategy",
@@ -67,6 +73,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Development"
       },
       {
+        id: 'p1-a3',
         task: "Finalize 'Lanes of Authority' (80/20 Split)",
         owner: "Milton Overton",
         source: "Executive Retreat Agenda",
@@ -74,6 +81,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Tuesday Retreat"
       },
       {
+        id: 'p1-a4',
         task: "Initiate CFO Search & Interim Protocol",
         owner: "Jessica Reo (Interim)",
         source: "90-Day Sprint",
@@ -92,6 +100,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
     color: 'bg-yellow-500',
     actions: [
       {
+        id: 'p2-a1',
         task: "Implement Decision Rights Framework (D/R/A/I)",
         owner: "Executive Team",
         source: "Retreat Objectives",
@@ -99,6 +108,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Workshop Item"
       },
       {
+        id: 'p2-a2',
         task: "Establish Weekly Executive Operating Reviews",
         owner: "Tierra Thompson",
         source: "Execution Cadence",
@@ -106,6 +116,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Immediate"
       },
       {
+        id: 'p2-a3',
         task: "Eliminate '35 Bubbles' (AD Time Allocation)",
         owner: "Tierra Thompson",
         source: "Time Allocation Analysis",
@@ -113,6 +124,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Restructuring"
       },
       {
+        id: 'p2-a4',
         task: "Align 'President’s Parliament' Funding Requests",
         owner: "Milton Overton",
         source: "Retreat Wrap-Up",
@@ -131,6 +143,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
     color: 'bg-gray-900',
     actions: [
       {
+        id: 'p3-a1',
         task: "Finalize Revenue Share Player Retention Model",
         owner: "Milton Overton / Legal",
         source: "C-USA Insurance Model",
@@ -138,6 +151,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Legal Review"
       },
       {
+        id: 'p3-a2',
         task: "Implement 'Moneyball 2.0' Portal Analytics",
         owner: "Jerry Mack / Mike Kershaw",
         source: "AI Strategy",
@@ -145,6 +159,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Software Eval"
       },
       {
+        id: 'p3-a3',
         task: "Secure $8-10M NIL Pool Target",
         owner: "Owls Collective / Dev",
         source: "Power 4 Benchmark",
@@ -152,6 +167,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Ongoing"
       },
       {
+        id: 'p3-a4',
         task: "Standardize Sport Supervision Program",
         owner: "Jessica Reo",
         source: "Huron Interview Themes",
@@ -170,6 +186,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
     color: 'bg-yellow-500',
     actions: [
       {
+        id: 'p4-a1',
         task: "Execute $25M Wellstar Partnership Deliverables",
         owner: "Mike Young / Ops",
         source: "Strategic Goals",
@@ -177,6 +194,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Execution"
       },
       {
+        id: 'p4-a2',
         task: "Close Student-Athlete Meals Gap ($638k)",
         owner: "Brad Ledford (Revenue)",
         source: "Huron Expense Gap",
@@ -184,6 +202,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Funding Needed"
       },
       {
+        id: 'p4-a3',
         task: "Complete Mickey Dunn Stadium Renovation",
         owner: "Ops / Facilities",
         source: "Capital Projects",
@@ -191,6 +210,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
         status: "Construction"
       },
       {
+        id: 'p4-a4',
         task: "Initiate Athletics-Specific Master Plan",
         owner: "Facilities Director",
         source: "Huron Rec",
