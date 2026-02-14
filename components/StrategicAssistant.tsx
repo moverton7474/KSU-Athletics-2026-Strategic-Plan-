@@ -74,11 +74,12 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
       });
 
       // Handle function calls if any
+      // Fix: Use String() for unknown fc.args to resolve line 81 type issues
       if (response.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
         const fc = response.candidates[0].content.parts[0].functionCall;
         if (fc.name === 'navigate_to_pillar') onNavigate(Number(fc.args.pillarId));
         if (fc.name === 'add_action_item') onAddAction(Number(fc.args.pillarId), fc.args);
-        if (fc.name === 'update_action_priority') onUpdatePriority(Number(fc.args.pillarId), fc.args.taskName, fc.args.newPriority);
+        if (fc.name === 'update_action_priority') onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
       }
 
       // Fix: Ensure the response text is explicitly cast to string to resolve 'unknown' type error
@@ -135,7 +136,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             // Fix: Explicitly check for transcription text and cast to string to resolve 'unknown' type error
             const transcriptText = message.serverContent?.inputTranscription?.text;
             if (transcriptText) {
-              setTranscription(transcriptText as string);
+              setTranscription(String(transcriptText));
             }
             if (message.serverContent?.turnComplete) {
               setChatHistory(prev => transcription ? [...prev, { role: 'user', text: transcription }] : prev);
@@ -145,8 +146,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               for (const fc of message.toolCall.functionCalls) {
                 if (fc.name === 'navigate_to_pillar') onNavigate(Number(fc.args.pillarId));
                 if (fc.name === 'add_action_item') onAddAction(Number(fc.args.pillarId), fc.args);
-                if (fc.name === 'update_action_priority') onUpdatePriority(Number(fc.args.pillarId), fc.args.taskName, fc.args.newPriority);
-                sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Success" } } }));
+                // Fix: Ensure taskName and newPriority are passed as strings (line 148)
+                if (fc.name === 'update_action_priority') onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
+                // Fix: Tool responses must be sent in an array
+                sessionPromise.then(s => s.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { result: "Success" } }] }));
               }
             }
           },

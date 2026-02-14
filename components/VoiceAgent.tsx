@@ -81,10 +81,10 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
               nextStartTimeRef.current = 0;
             }
 
-            // Fix: Explicitly check for transcription and cast text to string to resolve 'unknown' type error
+            // Fix: Explicitly cast transcriptText to string to resolve line 108 error
             const transcriptText = message.serverContent?.inputTranscription?.text;
             if (transcriptText) {
-               setTranscription(prev => prev + (transcriptText as string));
+               setTranscription(prev => prev + String(transcriptText));
             }
             if (message.serverContent?.turnComplete) {
               setTranscription('');
@@ -105,15 +105,17 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
                       status: fc.args.status || "Planned"
                     });
                   } else if (fc.name === 'delete_action_item') {
-                    onDeleteAction(Number(fc.args.pillarId), fc.args.taskName);
+                    // Fix: Ensure taskName is passed as a string
+                    onDeleteAction(Number(fc.args.pillarId), String(fc.args.taskName));
                   }
                 } catch (e) {
                   result = "Error executing command: " + (e as Error).message;
                 }
                 
+                // Fix: Tool responses must be sent in an array format per guidelines
                 sessionPromise.then(session => {
                   session.sendToolResponse({
-                    functionResponses: { id: fc.id, name: fc.name, response: { result } }
+                    functionResponses: [{ id: fc.id, name: fc.name, response: { result } }]
                   });
                 });
               }
