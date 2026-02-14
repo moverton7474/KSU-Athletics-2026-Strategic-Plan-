@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { User, AlertCircle, Clock } from 'lucide-react';
+import { User, AlertCircle, Clock, Calendar } from 'lucide-react';
 import { ActionItem } from '../types';
 
 interface ActionCardProps {
@@ -20,33 +20,54 @@ const ActionCard: React.FC<ActionCardProps> = ({ action }) => {
   };
 
   return (
-    <div className="group bg-white p-5 border border-gray-100 rounded-2xl hover:border-yellow-400 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+    <div className="group bg-white p-5 border border-gray-100 rounded-3xl hover:border-yellow-400 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-3 w-full">
           <div className="flex items-center space-x-2">
-             <div className={`h-2 w-2 rounded-full ${action.priority === 'Critical' ? 'animate-pulse bg-red-500' : 'bg-gray-300'}`}></div>
-             <h4 className="text-lg font-extrabold text-gray-900 group-hover:text-black transition-colors">
+             <div className={`h-2.5 w-2.5 rounded-full ${action.priority === 'Critical' ? 'animate-pulse bg-red-500' : 'bg-gray-300'}`}></div>
+             <h4 className="text-lg font-black text-black tracking-tight group-hover:text-yellow-600 transition-colors">
                {action.task}
              </h4>
           </div>
           
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-              <User className="w-4 h-4 mr-2 text-yellow-600" />
-              <span className="font-bold">{action.owner}</span>
+              <User className="w-3.5 h-3.5 mr-2 text-yellow-600" />
+              <span className="font-black text-[10px] uppercase tracking-widest">{action.owner}</span>
             </div>
+            {action.deadline && (
+              <div className="flex items-center text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-100">
+                <Calendar className="w-3.5 h-3.5 mr-2" />
+                <span className="font-black text-[10px] uppercase tracking-widest">Due: {action.deadline}</span>
+              </div>
+            )}
             <div className="flex items-center text-gray-500 italic bg-white px-3 py-1.5 rounded-full border border-gray-100">
-              <AlertCircle className="w-4 h-4 mr-2 text-gray-400" />
-              <span className="text-xs">Source: {action.source}</span>
+              <AlertCircle className="w-3.5 h-3.5 mr-2 text-gray-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Source: {action.source}</span>
             </div>
           </div>
+
+          {action.progress !== undefined && (
+            <div className="w-full pt-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Completion</span>
+                <span className="text-[9px] font-black text-black">{action.progress}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-yellow-500 rounded-full transition-all duration-1000" 
+                  style={{ width: `${action.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end space-y-3 shrink-0 w-full sm:w-auto">
           <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest shadow-lg ${getPriorityStyles(action.priority)}`}>
             {action.priority}
           </span>
-          <div className="flex items-center text-gray-500 text-xs font-mono bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 w-full justify-end">
+          <div className="flex items-center text-gray-500 text-[10px] font-black uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 w-full justify-end">
             <Clock className="w-3 h-3 mr-2" />
             {action.status}
           </div>
