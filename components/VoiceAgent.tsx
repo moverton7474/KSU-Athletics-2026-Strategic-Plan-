@@ -24,7 +24,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
 
   const startSession = async () => {
     setIsConnecting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    // Use directly as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
     outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -56,8 +57,9 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
         },
         onmessage: async (message: LiveServerMessage) => {
           // Handle Audio Out
-          const audioBase64 = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-          if (audioBase64 && outputAudioContextRef.current) {
+          const audioBase64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+          // Fix for line 104: Use typeof check to narrow unknown/undefined type to string.
+          if (typeof audioBase64 === 'string' && outputAudioContextRef.current) {
             const ctx = outputAudioContextRef.current;
             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
             const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
@@ -109,7 +111,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
               
               sessionPromise.then(session => {
                 session.sendToolResponse({
-                  functionResponses: [{ id: fc.id, name: fc.name, response: { result } }]
+                  functionResponses: { id: fc.id, name: fc.name, response: { result } }
                 });
               });
             }
@@ -126,44 +128,51 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({ onNavigate, onAddAction,
         systemInstruction: `You are the KSU Athletics Strategic AI Assistant. 
         You help staff navigate the 'Taking Flight to 2026' dashboard and manage strategic priorities. 
         Current Pillars: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.
-        You can navigate the app (0: Giant Killer, 1: Process, 2: Team, 3: Reload, 4: 360 Model), add tactical action items, or remove them. 
-        Be professional, energetic, and focused on Power Four excellence. 
-        If someone asks to add a task, ask for the owner and priority if they didn't specify.`,
+        
+        CRITICAL VOICE COMMAND INSTRUCTIONS:
+        1. Navigate: Allow users to switch views (e.g., "Show me the Giant Killer mindset").
+        2. Delete: Remove items by name.
+        3. Add Tactical Action Items: 
+           - When a user wants to add a new priority/task, YOU MUST GATHER: Task Name, Owner, and Priority.
+           - IF ANY ARE MISSING, DO NOT CALL THE TOOL. Instead, ask the user for the missing information (e.g., "Who will own this task?", "What is the priority: Critical, High, or Medium?").
+           - Once you have the Task, Owner, and Priority, call the 'add_action_item' tool.
+        
+        Be professional, energetic, and focused on Power Four excellence. Always confirm actions with a positive tone.`,
         tools: [{
           functionDeclarations: [
             {
               name: 'navigate_to_pillar',
-              description: 'Changes the view to a specific strategic pillar.',
+              description: 'Changes the dashboard view to a specific strategic pillar.',
               parameters: {
                 type: Type.OBJECT,
-                properties: { pillarId: { type: Type.INTEGER, description: 'ID of the pillar (0 to 4)' } },
+                properties: { pillarId: { type: Type.INTEGER, description: 'ID of the pillar (0: Giant Killer, 1: Process, 2: Team, 3: Reload, 4: 360 Model)' } },
                 required: ['pillarId']
               }
             },
             {
               name: 'add_action_item',
-              description: 'Adds a new tactical priority to a pillar.',
+              description: 'Adds a new tactical priority to a specific strategic pillar. Requires task name, owner, and priority level.',
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  pillarId: { type: Type.INTEGER },
-                  task: { type: Type.STRING },
-                  owner: { type: Type.STRING },
-                  source: { type: Type.STRING },
-                  priority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'] },
-                  status: { type: Type.STRING }
+                  pillarId: { type: Type.INTEGER, description: 'The ID of the strategic pillar (0-4).' },
+                  task: { type: Type.STRING, description: 'Short, descriptive title of the tactical priority.' },
+                  owner: { type: Type.STRING, description: 'The staff member or department responsible for execution.' },
+                  source: { type: Type.STRING, description: 'Origin of the requirement (defaults to AI Assisted).' },
+                  priority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'], description: 'Priority level.' },
+                  status: { type: Type.STRING, description: 'Current status or timeline.' }
                 },
                 required: ['pillarId', 'task', 'owner', 'priority']
               }
             },
             {
               name: 'delete_action_item',
-              description: 'Deletes an action item by name from a pillar.',
+              description: 'Deletes an action item by name from a strategic pillar.',
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  pillarId: { type: Type.INTEGER },
-                  taskName: { type: Type.STRING }
+                  pillarId: { type: Type.INTEGER, description: 'The ID of the strategic pillar (0-4).' },
+                  taskName: { type: Type.STRING, description: 'Exact or close match of the task name to delete.' }
                 },
                 required: ['pillarId', 'taskName']
               }

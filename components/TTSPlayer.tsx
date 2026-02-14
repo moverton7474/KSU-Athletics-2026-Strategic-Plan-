@@ -24,7 +24,8 @@ export const TTSPlayer: React.FC<TTSPlayerProps> = ({ text, title }) => {
 
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+      // Use directly as per guidelines
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Deliver a strategic executive briefing on the following pillar titled "${title}": ${text}. Keep it professional and authoritative.`;
       
       const response = await ai.models.generateContent({
@@ -41,7 +42,8 @@ export const TTSPlayer: React.FC<TTSPlayerProps> = ({ text, title }) => {
       });
 
       const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioBase64) {
+      // Fix: Use typeof check to narrow potential unknown/undefined type to string.
+      if (typeof audioBase64 === 'string') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const buffer = await decodeAudioData(decode(audioBase64), audioContextRef.current, 24000, 1);
         
