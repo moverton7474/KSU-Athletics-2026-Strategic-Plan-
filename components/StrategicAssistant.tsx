@@ -145,14 +145,24 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               nextStartTimeRef.current += buffer.duration;
               sourcesRef.current.add(source);
             }
-            const transcriptText = message.serverContent?.inputTranscription?.text;
-            if (transcriptText) setTranscription(String(transcriptText));
-            if (message.serverContent?.turnComplete) {
-              if (transcription) {
-                setChatHistory(prev => [...prev, { role: 'user', text: transcription }]);
-                setTranscription('');
-              }
+            
+            // Fixed transcription handling: append text chunks
+            const inputTranscript = message.serverContent?.inputTranscription?.text;
+            if (inputTranscript) {
+              setTranscription(prev => prev + inputTranscript);
             }
+
+            if (message.serverContent?.turnComplete) {
+              setChatHistory(prev => {
+                // Only add to history if there's actual content
+                if (transcription.trim()) {
+                  return [...prev, { role: 'user', text: transcription.trim() }];
+                }
+                return prev;
+              });
+              setTranscription('');
+            }
+
             if (message.toolCall) {
               for (const fc of message.toolCall.functionCalls) {
                 if (fc.name === 'navigate_to_pillar') onNavigate(Number(fc.args.pillarId));
@@ -170,6 +180,8 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         },
         config: {
           responseModalities: [Modality.AUDIO],
+          inputAudioTranscription: {}, // Mandatory to receive user audio as text
+          outputAudioTranscription: {}, // Helpful for logs
           systemInstruction: `You are the KSU Strategic Voice Operator.
           MISSION: Help Milton Overton and staff actually GET THINGS DONE.
           INTELLIGENCE: ${JSON.stringify(knowledgeBase)}
