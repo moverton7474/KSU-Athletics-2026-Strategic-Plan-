@@ -1,4 +1,7 @@
 {
   "name": "KSU Taking Flight 2026 Strategic Dashboard",
-  "description": "An interactive executive staff retreat dashboard for tracking the 'Taking Flight to 2026' strategic plan, featuring five strategic pillars and critical action items."
+  "description": "An interactive executive staff retreat dashboard for tracking the 'Taking Flight to 2026' strategic plan, featuring five strategic pillars and critical action items.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
