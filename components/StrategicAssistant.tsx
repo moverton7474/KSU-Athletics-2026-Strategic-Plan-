@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality, Type, LiveServerMessage, GenerateContentResponse } from '@google/genai';
-import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, AlertCircle, BookOpen } from 'lucide-react';
+import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, AlertCircle, BookOpen, HelpCircle } from 'lucide-react';
 import { decode, decodeAudioData, createBlob } from './AudioUtils';
 import { KNOWLEDGE_BASE } from '../knowledgeBase';
 
@@ -24,6 +24,8 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
   const [inputText, setInputText] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
   const [transcription, setTranscription] = useState('');
+  const [hasWelcomed, setHasWelcomed] = useState(false);
+  const [isBriefing, setIsBriefing] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -35,6 +37,53 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, transcription, isOpen]);
+
+  // Trigger Welcome Briefing when assistant is first opened
+  useEffect(() => {
+    if (isOpen && !hasWelcomed) {
+      triggerWelcomeBriefing();
+    }
+  }, [isOpen]);
+
+  const triggerWelcomeBriefing = async () => {
+    setHasWelcomed(true);
+    setIsBriefing(true);
+    
+    const welcomeText = `Welcome to KSU Athletics' Taking Flight 2026. I am your Strategic AI Assistant, here to navigate our Power Four ascent—from Giant Killer revenue to our 360 Holistic model. You can ask me to add tasks, change priorities, or explain our philosophy. How can I help you lead today?`;
+    
+    setChatHistory([{ 
+      role: 'ai', 
+      text: welcomeText
+    }]);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: welcomeText }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+          },
+        },
+      });
+
+      const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (typeof audioBase64 === 'string') {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => setIsBriefing(false);
+        source.start();
+      }
+    } catch (e) {
+      console.error("Welcome TTS Error:", e);
+      setIsBriefing(false);
+    }
+  };
 
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,39 +98,39 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const config: any = {
-        systemInstruction: `You are the KSU Strategic Intelligence Agent. You have access to a 'Second Brain' (Knowledge Base).
+        systemInstruction: `You are the KSU Strategic Intelligence Agent. 
         
-        KNOWLEDGE BASE CONTEXT:
-        - Project: ${KNOWLEDGE_BASE.projectTitle}
+        KNOWLEDGE BASE (Second Brain):
         - Organization: ${KNOWLEDGE_BASE.organization}
-        - Mission: ${KNOWLEDGE_BASE.mission}
-        - Revenue Goals: ${JSON.stringify(KNOWLEDGE_BASE.revenueTargets)}
+        - Strategic Mission: ${KNOWLEDGE_BASE.mission}
+        - User Guide / Help: ${JSON.stringify(KNOWLEDGE_BASE.systemOperations)}
         - Philosophies: ${JSON.stringify(KNOWLEDGE_BASE.strategicPhilosophies)}
         
-        MAPPING & TOOLS: 
-        - Pillar #0: Giant Killer Mindset ($10M Revenue pipeline).
-        - Pillar #1: Process over Personalities.
-        - Pillar #2: Team over Ego.
+        MAPPING: 
+        - Pillar #0: Giant Killer ($10M Revenue).
+        - Pillar #1: Process Over Personalities.
+        - Pillar #2: Team Over Ego.
         - Pillar #3: Reload Mentality.
         - Pillar #4: 360 Holistic Model.
 
-        If a user asks to CHANGE or UPDATE an existing task (e.g., "Change the owner of X to Y" or "Update the status of Z"), use the update_action_item tool.
-        Pillars current state: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.`,
+        IF USER ASKS HOW TO USE THE SYSTEM:
+        Explain the two paths: 
+        1. Manual: Use the Pencil Icon on task cards.
+        2. AI: Command me directly to add, delete, or update.
+
+        Pillars state: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.`,
         tools: [{
           functionDeclarations: [
             { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
             { name: 'add_action_item', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER }, task: { type: Type.STRING }, owner: { type: Type.STRING }, priority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'] } }, required: ['pillarId', 'task', 'owner', 'priority'] } },
             { 
               name: 'update_action_item', 
-              description: 'Updates an existing tactical priority.',
               parameters: { 
                 type: Type.OBJECT, 
                 properties: { 
                   pillarId: { type: Type.INTEGER }, 
-                  taskName: { type: Type.STRING, description: 'The current name of the task to find it' }, 
-                  newOwner: { type: Type.STRING }, 
-                  newPriority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'] },
-                  newStatus: { type: Type.STRING }
+                  taskName: { type: Type.STRING }, 
+                  newPriority: { type: Type.STRING, enum: ['Critical', 'High', 'Medium'] }
                 }, 
                 required: ['pillarId', 'taskName'] 
               } 
@@ -103,26 +152,15 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             if (fc.name === 'navigate_to_pillar') onNavigate(Number(fc.args.pillarId));
             if (fc.name === 'add_action_item') onAddAction(Number(fc.args.pillarId), fc.args);
             if (fc.name === 'update_action_item') {
-              const pillar = pillars.find(p => p.id === Number(fc.args.pillarId));
-              const task = pillar?.actions.find((a: any) => a.task.toLowerCase().includes(String(fc.args.taskName).toLowerCase()));
-              if (task) {
-                const updated = { ...task };
-                if (fc.args.newOwner) updated.owner = String(fc.args.newOwner);
-                if (fc.args.newPriority) updated.priority = fc.args.newPriority;
-                if (fc.args.newStatus) updated.status = String(fc.args.newStatus);
-                // We use the navigate logic or a silent update. For now, let's assume we update via the parent handleUpdatePriority for priority or a generic update logic if we added it to Props.
-                // Since onUpdateAction isn't in Props yet, we'll use existing handleUpdatePriority or similar.
-                if (fc.args.newPriority) onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
-              }
+              if (fc.args.newPriority) onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
             }
           }
         }
       }
 
-      const aiText = response.text || "Strategic request processed.";
-      setChatHistory(prev => [...prev, { role: 'ai', text: aiText }]);
+      setChatHistory(prev => [...prev, { role: 'ai', text: response.text || "Strategic command executed." }]);
     } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'ai', text: "Strategic uplink interrupted." }]);
+      setChatHistory(prev => [...prev, { role: 'ai', text: "Uplink interrupted." }]);
     } finally {
       setIsTyping(false);
     }
@@ -181,7 +219,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                 if (fc.name === 'navigate_to_pillar') onNavigate(Number(fc.args.pillarId));
                 if (fc.name === 'add_action_item') onAddAction(Number(fc.args.pillarId), fc.args);
                 if (fc.name === 'update_action_item') {
-                   if (fc.args.newPriority) onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
+                  if (fc.args.newPriority) onUpdatePriority(Number(fc.args.pillarId), String(fc.args.taskName), String(fc.args.newPriority));
                 }
                 sessionPromise.then(s => s.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { result: "Success" } }] }));
               }
@@ -193,10 +231,10 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: `You are the KSU Strategic Voice Agent. 
-          Use update_action_item to change details of existing priorities.
-          Use navigate_to_pillar to change views.
-          Use add_action_item to create new ones.
-          Knowledge Base Context: ${JSON.stringify(KNOWLEDGE_BASE)}`,
+          Use the 'System Operations Guide' in your Knowledge Base to help users manage the plan.
+          Explain that they can edit manually with the pencil icon or ask you.
+          Briefly summarize objectives for 2026 if asked.
+          KB: ${JSON.stringify(KNOWLEDGE_BASE)}`,
           tools: [{
             functionDeclarations: [
               { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
@@ -237,6 +275,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         </button>
       ) : (
         <div className="bg-white rounded-[2rem] shadow-4xl h-full flex flex-col border-2 border-gray-100 overflow-hidden relative animate-in zoom-in-95 duration-300">
+          {/* Header */}
           <div className="bg-black text-white px-6 py-4 flex justify-between items-center border-b-2 border-yellow-500">
             <div className="flex items-center space-x-3">
               <div className="bg-yellow-500 p-2 rounded-xl text-black">
@@ -245,8 +284,8 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               <div>
                 <h3 className="font-black uppercase text-[10px] tracking-widest leading-none">Strategic AI Hub</h3>
                 <div className="flex items-center space-x-1.5 mt-1">
-                  <BookOpen size={10} className="text-blue-400" />
-                  <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">Second Brain Active</p>
+                  <HelpCircle size={10} className="text-blue-400" />
+                  <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">System Guide Active</p>
                 </div>
               </div>
             </div>
@@ -255,18 +294,8 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             </button>
           </div>
 
+          {/* Chat Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scroll-smooth">
-            {chatHistory.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-6">
-                <div className="w-12 h-12 bg-white border border-gray-100 rounded-full flex items-center justify-center text-gray-400 shadow-sm">
-                  <MessageSquare size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-black mb-1">Uplink Established</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 leading-relaxed">Managing objectives via voice or text.</p>
-                </div>
-              </div>
-            )}
             {chatHistory.map((chat, i) => (
               <div key={i} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[85%] p-4 rounded-2xl text-[12px] font-bold shadow-sm ${
@@ -276,6 +305,14 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                 </div>
               </div>
             ))}
+            {isBriefing && (
+              <div className="flex justify-start">
+                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-2xl flex items-center space-x-2 animate-pulse">
+                  <Zap className="w-3 h-3 text-yellow-500" />
+                  <span className="text-[8px] font-black uppercase tracking-widest text-yellow-700">Audio Briefing in Progress...</span>
+                </div>
+              </div>
+            )}
             {transcription && (
               <div className="flex justify-end animate-in fade-in">
                 <div className="bg-black/80 text-white p-3 rounded-2xl text-[11px] italic border-2 border-yellow-500 animate-pulse font-bold">"{transcription}"</div>
@@ -292,6 +329,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             <div ref={chatEndRef} />
           </div>
 
+          {/* Input Area */}
           <div className="p-4 bg-white border-t border-gray-100">
             <form onSubmit={handleTextSubmit} className="flex items-center space-x-2">
               <button 
@@ -308,7 +346,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                   type="text" 
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Strategic query or command..."
+                  placeholder="Ask 'how do I...?' or command me"
                   className="w-full bg-gray-50 border-2 border-transparent focus:border-yellow-500 rounded-xl px-4 py-3 text-[12px] font-bold outline-none transition-all"
                 />
                 <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-600 hover:scale-110">

@@ -29,5 +29,11 @@ export const KNOWLEDGE_BASE = {
     footballTickets: "Targeting $100K increase in 2026 season ticket sales.",
     sponsorships: "Expanding national broadcast reach to $2.1M.",
     playerRetention: "NIL Pool Reach goal of $4.2M to remain competitive."
+  },
+  systemOperations: {
+    howToEdit: "Manual: Click the Pencil Icon on any task card to open the edit modal. Voice: Say 'Change the owner of [Task] to [Name]' or 'Update the status of [Task]'.",
+    howToAdd: "Voice/Text only: Tell the AI Assistant the Task, Owner, and Priority (Critical, High, or Medium).",
+    howToDelete: "Voice/Text only: Ask the AI to 'Remove' or 'Delete' a specific task by name.",
+    syncing: "The system auto-syncs to Supabase Cloud every 10 seconds. Look for the Cloud Checkmark in the header to confirm save status."
   }
 };
