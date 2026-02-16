@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { StrategicAssistant } from './components/StrategicAssistant';
 import { TTSPlayer } from './components/TTSPlayer';
-// Fix: Removed non-existent Type import from ./types. StrategicPillar, ActionItem, CurrentUser, Organization are correctly exported.
+import { NotificationHub } from './components/NotificationHub';
 import { StrategicPillar, ActionItem, CurrentUser, Organization } from './types';
 import { supabase } from './lib/supabase';
 import { KNOWLEDGE_BASE as INITIAL_KB } from './knowledgeBase';
@@ -210,7 +210,15 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-6">
+            <NotificationHub 
+              pillars={pillars} 
+              onDispatchEmail={(details) => {
+                setNotification({ message: details, type: 'success' });
+                setTimeout(() => setNotification(null), 3000);
+              }} 
+            />
+            <div className="h-4 w-px bg-gray-300"></div>
             <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
                <div className="w-2 h-2 rounded-full bg-green-500"></div>
                <span className="text-gray-900 font-bold">{currentUser.name}</span>

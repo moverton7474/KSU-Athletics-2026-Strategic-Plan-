@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Users, Calendar, Save, UserPlus, Mail, ChevronRight, LayoutGrid, Target, Clock, ShieldCheck, Globe, Building2 } from 'lucide-react';
+import { Plus, Trash2, Users, Calendar, Save, UserPlus, Mail, ChevronRight, LayoutGrid, Target, Clock, ShieldCheck, Globe, Building2, Loader2, CheckCircle } from 'lucide-react';
 import { StrategicPillar, ActionItem, Collaborator, UserRole } from '../types';
+import { GoogleGenAI } from '@google/genai';
 
 interface ArchitectViewProps {
   pillars: StrategicPillar[];
@@ -12,6 +13,8 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
   const [activeTab, setActiveTab] = useState<'pillars' | 'collaborators' | 'org'>('pillars');
   const [inviteEmail, setInviteEmail] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('Contributor');
+  const [isSending, setIsSending] = useState(false);
+  const [lastInviteContent, setLastInviteContent] = useState<string | null>(null);
   
   const [collaborators, setCollaborators] = useState<Collaborator[]>([
     { id: '1', name: 'Brad Ledford', email: 'brad@ksu.edu', role: 'Contributor', lastActive: '2 hours ago' },
@@ -45,18 +48,43 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
     }
   };
 
-  const sendInvite = (e: React.FormEvent) => {
+  const sendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail) return;
-    const newUser: Collaborator = {
-      id: Math.random().toString(),
-      name: inviteEmail.split('@')[0],
-      email: inviteEmail,
-      role: selectedRole,
-      lastActive: 'Invited'
-    };
-    setCollaborators([...collaborators, newUser]);
-    setInviteEmail('');
+    if (!inviteEmail || isSending) return;
+
+    setIsSending(true);
+    setLastInviteContent(null);
+
+    try {
+      // AI-powered invite drafting to simulate premium SaaS experience
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Draft a high-stakes, professional invitation email to join a strategic planning platform called StratOS. 
+        RECIPIENT: ${inviteEmail}
+        ROLE: ${selectedRole}
+        ORGANIZATION: Kennesaw State Athletics (The Power Four Ascent)
+        MISSION: "Taking Flight to 2026"
+        The tone should be urgent, elite, and system-centric. Mention that their input is critical for the upcoming Executive Retreat.`
+      });
+
+      setLastInviteContent(response.text);
+      
+      const newUser: Collaborator = {
+        id: Math.random().toString(),
+        name: inviteEmail.split('@')[0],
+        email: inviteEmail,
+        role: selectedRole,
+        lastActive: 'Invited'
+      };
+      
+      setCollaborators([...collaborators, newUser]);
+      setInviteEmail('');
+    } catch (err) {
+      console.error("Invite simulation failed:", err);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -128,7 +156,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
 
           {activeTab === 'collaborators' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="bg-black text-white rounded-[2.5rem] p-10 flex justify-between items-center">
+              <div className="bg-black text-white rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start gap-10">
                 <div className="max-w-md">
                   <h3 className="text-4xl font-black uppercase tracking-tighter mb-4">Uplink New Leaders</h3>
                   <p className="text-gray-400 text-sm font-bold mb-8">
@@ -142,23 +170,45 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                         onChange={(e) => setInviteEmail(e.target.value)}
                         placeholder="colleague@ksu.edu"
                         className="flex-1 bg-white/10 border border-white/20 rounded-l-2xl px-6 py-4 outline-none text-white font-bold"
+                        disabled={isSending}
                       />
                       <select 
                         value={selectedRole}
                         onChange={(e) => setSelectedRole(e.target.value as UserRole)}
                         className="bg-white/10 border-y border-r border-white/20 px-4 text-xs font-black uppercase text-yellow-500 outline-none"
+                        disabled={isSending}
                       >
                         <option value="Contributor">Contributor</option>
                         <option value="Admin">Admin</option>
                         <option value="Viewer">Viewer</option>
                       </select>
-                      <button type="submit" className="bg-yellow-500 text-black px-8 rounded-r-2xl font-black uppercase tracking-widest text-xs hover:bg-yellow-400 transition-colors">
-                        Invite
+                      <button 
+                        type="submit" 
+                        disabled={isSending}
+                        className="bg-yellow-500 text-black px-8 rounded-r-2xl font-black uppercase tracking-widest text-xs hover:bg-yellow-400 transition-colors flex items-center space-x-2"
+                      >
+                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Invite</span>}
                       </button>
                     </div>
                   </form>
                 </div>
-                <Users size={120} className="text-yellow-500/10 hidden md:block" />
+                
+                {lastInviteContent && (
+                  <div className="flex-1 bg-white/5 border border-white/10 p-6 rounded-3xl animate-in slide-in-from-right-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2 text-green-400">
+                        <CheckCircle size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Mock Dispatch Successful</span>
+                      </div>
+                      <button onClick={() => setLastInviteContent(null)} className="text-white/20 hover:text-white"><Plus size={14} className="rotate-45" /></button>
+                    </div>
+                    <div className="text-[10px] text-gray-300 italic font-mono leading-relaxed whitespace-pre-wrap">
+                      {lastInviteContent}
+                    </div>
+                  </div>
+                )}
+                
+                {!lastInviteContent && <Users size={120} className="text-yellow-500/10 hidden md:block self-center" />}
               </div>
 
               <div className="grid gap-4">
@@ -166,7 +216,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                   <div key={c.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center">
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400">
-                        {c.name.charAt(0)}
+                        {c.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <h5 className="font-black text-sm text-black">{c.name}</h5>
@@ -177,7 +227,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${c.role === 'Admin' ? 'bg-black text-yellow-500' : 'bg-gray-100 text-gray-400'}`}>
                         {c.role}
                       </span>
-                      <button onClick={() => setCollaborators(collaborators.filter(u => u.id !== c.id))} className="text-gray-200 hover:text-red-500"><Trash2 size={16} /></button>
+                      <button onClick={() => setCollaborators(collaborators.filter(u => u.id !== c.id))} className="text-gray-200 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </div>
                 ))}
