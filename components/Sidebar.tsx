@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Target, Users, Shield, RefreshCw, Heart, FileText } from 'lucide-react';
 import { StrategicPillar } from '../types';
 
 interface SidebarProps {
@@ -8,6 +9,17 @@ interface SidebarProps {
   onSelect: (id: number) => void;
 }
 
+const getIcon = (iconName?: string) => {
+  switch (iconName) {
+    case 'Target': return <Target className="w-6 h-6" />;
+    case 'Users': return <Users className="w-6 h-6" />;
+    case 'Shield': return <Shield className="w-6 h-6" />;
+    case 'RefreshCw': return <RefreshCw className="w-6 h-6" />;
+    case 'Heart': return <Heart className="w-6 h-6" />;
+    default: return <FileText className="w-6 h-6" />;
+  }
+};
+
 const Sidebar: React.FC<SidebarProps> = ({ pillars, activeId, onSelect }) => {
   return (
     <nav className="w-full md:w-80 lg:w-96 bg-white border-r border-gray-100 flex-shrink-0">
@@ -15,7 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ pillars, activeId, onSelect }) => {
         <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">Strategic Pillars</h2>
       </div>
       <div className="overflow-y-auto">
-        {pillars.map((pillar) => (
+        {(pillars || []).map((pillar) => (
           <button
             key={pillar.id}
             onClick={() => onSelect(pillar.id)}
@@ -31,16 +43,16 @@ const Sidebar: React.FC<SidebarProps> = ({ pillars, activeId, onSelect }) => {
                   ? 'bg-black text-yellow-500 scale-110 shadow-lg' 
                   : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
               }`}>
-                {pillar.icon}
+                {getIcon(pillar.icon as string)}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className={`font-bold uppercase tracking-tight text-sm mb-1 ${
                   activeId === pillar.id ? 'text-black' : 'text-gray-600 group-hover:text-black'
                 }`}>
-                  {pillar.title}
+                  {pillar.title || `Pillar #${pillar.id + 1}`}
                 </h3>
                 <p className="text-xs text-gray-500 font-medium leading-relaxed truncate">
-                  {pillar.focus}
+                  {pillar.focus || 'Strategic Focus Area'}
                 </p>
               </div>
             </div>

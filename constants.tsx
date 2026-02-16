@@ -7,7 +7,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
   {
     id: 0,
     title: 'The "Giant Killer" Mindset',
-    icon: <Target className="w-6 h-6" />,
+    icon: 'Target',
     focus: 'Aggressive Competition & Business Dev',
     enablingAction: '$10M Revenue Pipeline Growth',
     description: 'Adopting an aggressive, high-stakes approach to close the $5.5M earned revenue gap.',
@@ -47,7 +47,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
   {
     id: 1,
     title: '"Process Over Personalities"',
-    icon: <RefreshCw className="w-6 h-6" />,
+    icon: 'RefreshCw',
     focus: 'Institutional Systems Strength',
     enablingAction: '"Lean Into Change" Campaign',
     description: 'Ensuring brand strength is built on systems rather than the influence of any single individual.',
@@ -87,7 +87,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
   {
     id: 2,
     title: '"Team Over Ego"',
-    icon: <Users className="w-6 h-6" />,
+    icon: 'Users',
     focus: 'Collective Organizational Success',
     enablingAction: '"Practice of Extreme Humility"',
     description: 'Prioritizing collective success and implementing a "Student-Athlete First" decision matrix.',
@@ -119,7 +119,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
   {
     id: 3,
     title: 'The "Reload" Mentality',
-    icon: <Shield className="w-6 h-6" />,
+    icon: 'Shield',
     focus: 'Continuous Development',
     enablingAction: 'Talent Acquisition & Retention Model',
     description: 'Robust succession planning and retention strategies for the transfer portal era.',
@@ -151,7 +151,7 @@ export const PILLARS_DATA: StrategicPillar[] = [
   {
     id: 4,
     title: '360 Holistic Model',
-    icon: <Heart className="w-6 h-6" />,
+    icon: 'Heart',
     focus: 'Comprehensive Support System',
     enablingAction: 'Wellstar Champions Complex',
     description: 'Building a state-of-the-art support system for health, human performance, and academics.',
