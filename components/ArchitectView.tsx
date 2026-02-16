@@ -1,36 +1,36 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Users, Calendar, Save, UserPlus, Mail, ChevronRight, LayoutGrid, Target, Clock, ShieldCheck, Globe, Building2, Loader2, CheckCircle, RefreshCw, Zap } from 'lucide-react';
-import { StrategicPillar, ActionItem, Collaborator, UserRole } from '../types';
+import { Plus, Trash2, Users, LayoutGrid, Building2, Loader2, CheckCircle, RefreshCw, Zap } from 'lucide-react';
+import { StrategicPillar, Collaborator, UserRole } from '../types';
 import { GoogleGenAI } from '@google/genai';
 
 interface ArchitectViewProps {
   pillars: StrategicPillar[];
   setPillars: (pillars: StrategicPillar[]) => void;
+  collaborators: Collaborator[];
+  onUpdateCollaborators: (collaborators: Collaborator[]) => void;
 }
 
-export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillars }) => {
+export const ArchitectView: React.FC<ArchitectViewProps> = ({ 
+  pillars, 
+  setPillars, 
+  collaborators, 
+  onUpdateCollaborators 
+}) => {
   const [activeTab, setActiveTab] = useState<'pillars' | 'collaborators' | 'org'>('collaborators');
   const [inviteEmail, setInviteEmail] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('Contributor');
   const [isSending, setIsSending] = useState(false);
   const [lastInviteContent, setLastInviteContent] = useState<string | null>(null);
-  
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([
-    { id: '1', name: 'Brad Ledford', email: 'brad@ksu.edu', role: 'Contributor', lastActive: '2 hours ago' },
-    { id: '2', name: 'Stephanie Clemmons', email: 'steph@ksu.edu', role: 'Contributor', lastActive: '1 day ago' },
-    { id: '3', name: 'Jessica Reo', email: 'jessica@ksu.edu', role: 'Admin', lastActive: 'Online' },
-    { id: '4', name: 'Tierra Thompson', email: 'tierra@ksu.edu', role: 'Contributor', lastActive: '3 hours ago' },
-    { id: '5', name: 'Claire', email: 'claire@ksu.edu', role: 'Contributor', lastActive: '5 days ago' }
-  ]);
 
   const updateCollaboratorRole = (id: string, newRole: UserRole) => {
-    setCollaborators(prev => prev.map(c => c.id === id ? { ...c, role: newRole } : c));
+    const updated = (collaborators || []).map(c => c.id === id ? { ...c, role: newRole } : c);
+    onUpdateCollaborators(updated);
   };
 
   const addPillar = () => {
     const newPillar: StrategicPillar = {
-      id: pillars.length,
+      id: (pillars || []).length,
       title: "New Strategic Pillar",
       focus: "Define focus area",
       enablingAction: "Define primary objective",
@@ -39,16 +39,16 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
       actions: [],
       metrics: []
     };
-    setPillars([...pillars, newPillar]);
+    setPillars([...(pillars || []), newPillar]);
   };
 
   const updatePillar = (id: number, field: keyof StrategicPillar, value: any) => {
-    setPillars(pillars.map(p => p.id === id ? { ...p, [field]: value } : p));
+    setPillars((pillars || []).map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   const deletePillar = (id: number) => {
     if (confirm("Are you sure? This will delete all associated tactical actions.")) {
-      setPillars(pillars.filter(p => p.id !== id).map((p, i) => ({ ...p, id: i })));
+      setPillars((pillars || []).filter(p => p.id !== id).map((p, i) => ({ ...p, id: i })));
     }
   };
 
@@ -71,7 +71,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
         The tone should be urgent, elite, and system-centric. Mention that their input is critical for the upcoming Executive Retreat.`
       });
 
-      setLastInviteContent(response.text);
+      setLastInviteContent(response.text || '');
       
       const newUser: Collaborator = {
         id: Math.random().toString(),
@@ -81,7 +81,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
         lastActive: 'Invited Now'
       };
       
-      setCollaborators([newUser, ...collaborators]);
+      onUpdateCollaborators([newUser, ...(collaborators || [])]);
       setInviteEmail('');
     } catch (err) {
       console.error("Invite simulation failed:", err);
@@ -129,7 +129,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
         <div className="max-w-5xl mx-auto">
           {activeTab === 'pillars' && (
             <div className="space-y-8">
-              {pillars.map((pillar) => (
+              {pillars?.map((pillar) => (
                 <div key={pillar.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden group">
                   <div className="p-8 space-y-6">
                     <div className="flex justify-between items-start">
@@ -225,11 +225,11 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                     <span>System Controls</span>
                   </div>
                 </div>
-                {collaborators.map((c) => (
+                {collaborators?.map((c) => (
                   <div key={c.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center group hover:border-yellow-500 transition-all">
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400 group-hover:bg-black group-hover:text-yellow-500 transition-colors">
-                        {c.name.charAt(0).toUpperCase()}
+                        {c.name?.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <h5 className="font-black text-sm text-black">{c.name}</h5>
@@ -261,7 +261,7 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                       <button 
                         onClick={() => {
                           if(confirm(`Revoke all strategic access for ${c.name}?`)) {
-                            setCollaborators(collaborators.filter(u => u.id !== c.id));
+                            onUpdateCollaborators((collaborators || []).filter(u => u.id !== c.id));
                           }
                         }} 
                         className="text-gray-200 hover:text-red-500 transition-colors p-2"
@@ -291,7 +291,6 @@ export const ArchitectView: React.FC<ArchitectViewProps> = ({ pillars, setPillar
                    </div>
                    <div className="mt-10 p-6 bg-yellow-50 rounded-2xl border border-yellow-100">
                       <div className="flex items-center space-x-3 mb-2">
-                         <Globe size={18} className="text-yellow-600" />
                          <span className="text-xs font-black uppercase tracking-widest text-yellow-800">SaaS Multi-tenant Endpoint</span>
                       </div>
                       <code className="text-[10px] font-mono text-yellow-700 bg-white/50 px-2 py-1 rounded">https://ksu-athletics.stratos.app/api/v1/sync</code>

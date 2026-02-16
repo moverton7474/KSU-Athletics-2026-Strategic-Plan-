@@ -31,7 +31,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
   const sessionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  // Use a Ref to store the transcription to avoid stale closures in the Live API callback
   const transcriptionRef = useRef('');
 
   useEffect(() => {
@@ -60,7 +59,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         3. Schedule Meetings (schedule_calendar_event).
         4. Ingest New Intelligence (update_second_brain) - use this if the user provides new notebook data.
 
-        Pillar Mapping: ${pillars.map(p => `#${p.id}: ${p.title}`).join(', ')}.`,
+        Pillar Mapping: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.`,
         tools: [{
           functionDeclarations: [
             { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
@@ -131,7 +130,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             setIsConnecting(false);
             setIsVoiceActive(true);
             
-            // Explicitly resume audio contexts to handle browser autoplay policies
             inputCtx.resume();
             outputCtx.resume();
 
@@ -146,7 +144,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             scriptProcessor.connect(inputCtx.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
-            // Handle audio output from model
             const audioBase64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (typeof audioBase64 === 'string' && outputAudioContextRef.current?.state !== 'closed') {
               const ctx = outputAudioContextRef.current!;
@@ -169,7 +166,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               nextStartTimeRef.current = 0;
             }
             
-            // Use transcriptionRef to avoid stale closures
             const inputTranscript = message.serverContent?.inputTranscription?.text;
             if (inputTranscript) {
               transcriptionRef.current += inputTranscript;
@@ -215,6 +211,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
           systemInstruction: `You are the KSU Strategic Voice Operator. 
           MISSION: High-stakes execution support for the Power Four Ascent.
           
+          Current Pillars Mapping: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.
           When users speak, you listen and execute via tools. 
           If you call 'add_action_item', confirm it verbally. 
           Keep responses concise and authoritative.`,
@@ -255,7 +252,6 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
     sourcesRef.current.forEach(s => {
       try { s.stop(); } catch(e) {}
     });
-    sourcesRef.add(new Set()); // Clear
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
   };

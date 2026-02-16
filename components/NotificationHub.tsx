@@ -19,8 +19,8 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({ pillars, onDis
     const now = new Date();
     const foundReminders: any[] = [];
 
-    pillars.forEach(pillar => {
-      pillar.actions.forEach(action => {
+    pillars?.forEach(pillar => {
+      pillar.actions?.forEach(action => {
         if (!action.deadline) return;
         const deadlineDate = new Date(action.deadline);
         const diffDays = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
