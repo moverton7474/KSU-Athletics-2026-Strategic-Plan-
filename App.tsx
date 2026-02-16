@@ -43,8 +43,8 @@ const App: React.FC = () => {
   });
 
   const [viewMode, setViewMode] = useState<'executive' | 'architect'>('executive');
-  const [pillars, setPillars] = useState<StrategicPillar[]>(PILLARS_DATA);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>(DEFAULT_COLLABORATORS);
+  const [pillars, setPillars] = useState<StrategicPillar[]>(PILLARS_DATA || []);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>(DEFAULT_COLLABORATORS || []);
   const [kb, setKb] = useState<any>(INITIAL_KB);
   const [activePillarId, setActivePillarId] = useState(0);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'local' | 'no-schema'>('idle');
@@ -61,28 +61,30 @@ const App: React.FC = () => {
       
       // 1. Fetch Plan & Merge with Local Schema for robustness
       const planRes = await supabase.from('strategic_plan').select('data').eq('plan_key', PLAN_KEY).single();
+      
       if (planRes.data && Array.isArray(planRes.data.data)) {
-        // We merge with PILLARS_DATA to ensure icons/colors are preserved even if DB content is partial
+        const dbData = planRes.data.data;
         const mergedPillars = PILLARS_DATA.map((defaultPillar) => {
-          const dbPillar = planRes.data.data.find((p: any) => p.id === defaultPillar.id);
+          const dbPillar = dbData.find((p: any) => p.id === defaultPillar.id);
           if (dbPillar) {
              return { 
                ...defaultPillar, 
                ...dbPillar, 
-               // Ensure arrays exist
+               // Prioritize local icon mapping strings to ensure Sidebar getIcon works
+               icon: dbPillar.icon || defaultPillar.icon,
+               // Deep merge actions and metrics arrays to prevent empty states
                actions: Array.isArray(dbPillar.actions) ? dbPillar.actions : defaultPillar.actions,
                metrics: Array.isArray(dbPillar.metrics) ? dbPillar.metrics : defaultPillar.metrics,
-               // Keep the local icon name if the DB doesn't have it
-               icon: dbPillar.icon || defaultPillar.icon 
              };
           }
           return defaultPillar;
         });
         
-        // Handle any extra pillars added in architect mode
-        const extraPillars = planRes.data.data.filter((p: any) => p.id >= PILLARS_DATA.length);
-        
-        setPillars([...mergedPillars, ...extraPillars]);
+        // Include any custom pillars that aren't in the default set
+        const customPillars = dbData.filter((p: any) => !PILLARS_DATA.some(dp => dp.id === p.id));
+        setPillars([...mergedPillars, ...customPillars]);
+      } else {
+        setPillars(PILLARS_DATA);
       }
 
       // 2. Fetch Knowledge
@@ -93,7 +95,7 @@ const App: React.FC = () => {
       const collRes = await supabase.from('strategic_collaborators').select('*').order('created_at', { ascending: false });
       if (collRes.data && Array.isArray(collRes.data) && collRes.data.length > 0) {
         setCollaborators(collRes.data);
-      } else if (DEFAULT_COLLABORATORS && DEFAULT_COLLABORATORS.length > 0) {
+      } else {
         await supabase.from('strategic_collaborators').upsert(DEFAULT_COLLABORATORS.map(c => ({
           name: c.name,
           email: c.email,
@@ -105,18 +107,25 @@ const App: React.FC = () => {
       setSyncStatus('saved');
     } catch (e: any) { 
       setSyncStatus('error'); 
+      setPillars(PILLARS_DATA); // Fallback to local data on error
     }
   }, []);
 
   const syncPlan = useCallback(async (fullDataOverride?: StrategicPillar[]) => {
-    const currentData = fullDataOverride || pillars;
-    if (!supabase || !currentData) return;
+    const rawData = fullDataOverride || pillars;
+    if (!supabase || !rawData) return;
     
+    // SANITIZATION: Remove non-serializable icon elements before saving
+    const sanitizedData = rawData.map(({ iconElement, ...rest }) => ({
+      ...rest,
+      actions: (rest.actions || []).map(action => ({ ...action }))
+    }));
+
     setSyncStatus('syncing');
     try {
       await supabase.from('strategic_plan').upsert({ 
         plan_key: PLAN_KEY, 
-        data: currentData, 
+        data: sanitizedData, 
         updated_at: new Date().toISOString() 
       }, { onConflict: 'plan_key' });
       setSyncStatus('saved');
@@ -125,9 +134,9 @@ const App: React.FC = () => {
 
   const updateCollaborators = async (newCollaborators: Collaborator[]) => {
     if (!Array.isArray(newCollaborators)) return;
-    
     setCollaborators(newCollaborators);
     if (!supabase) return;
+    
     setSyncStatus('syncing');
     try {
       for (const c of newCollaborators) {
@@ -213,8 +222,7 @@ const App: React.FC = () => {
     setViewMode('executive');
   };
 
-  // Safe access for active pillar
-  const activePillar = (pillars || []).find(p => p.id === activePillarId) || pillars[0];
+  const activePillar = (pillars || []).find(p => p.id === activePillarId) || (pillars && pillars[0]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-900 overflow-x-hidden selection:bg-yellow-500 selection:text-black">
@@ -289,7 +297,7 @@ const App: React.FC = () => {
             <div className="flex-1 p-4 md:p-10 lg:p-12">
               <div className="max-w-6xl mx-auto space-y-12">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {activePillar?.metrics?.map((m, i) => (
+                  {(activePillar?.metrics || []).map((m, i) => (
                     <div key={i} className="bg-white border-2 border-gray-100 p-6 rounded-[2rem] hover:border-yellow-500 transition-all shadow-sm">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{m.label}</span>
@@ -331,7 +339,7 @@ const App: React.FC = () => {
                     <h3 className="text-2xl font-black text-black uppercase tracking-tighter">Tactical Priorities</h3>
                   </div>
                   <div className="grid gap-4">
-                    {activePillar?.actions?.map((action) => (
+                    {(activePillar?.actions || []).map((action) => (
                       <ActionCard key={action.id} action={action} />
                     ))}
                     {(!activePillar?.actions || activePillar.actions.length === 0) && (
