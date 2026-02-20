@@ -1,5 +1,7 @@
 
-export const KNOWLEDGE_BASE = {
+import { ExtendedKnowledgeBase } from './lib/notebookLmSync';
+
+export const KNOWLEDGE_BASE: ExtendedKnowledgeBase = {
   projectTitle: "Taking Flight to 2026",
   organization: "KSU Athletics",
   mission: "Strategic Architecture for the Power Four Ascent",
@@ -29,5 +31,11 @@ export const KNOWLEDGE_BASE = {
     footballTickets: "Targeting $100K increase in 2026 season ticket sales.",
     sponsorships: "Expanding national broadcast reach to $2.1M.",
     playerRetention: "NIL Pool Reach goal of $4.2M to remain competitive."
-  }
+  },
+
+  // Budget Intelligence — populated when Excel file is uploaded via sync pipeline
+  budgetIntelligence: undefined,
+
+  // NotebookLM Sync Data — populated when notebook sync runs
+  notebookSyncData: undefined,
 };

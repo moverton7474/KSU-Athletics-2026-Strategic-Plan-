@@ -9,6 +9,17 @@ This roadmap outlines the evolution of the Strategic Operating System from its c
 - [x] **Architect Mode:** Basic CRUD for pillars and tactical priorities.
 - [x] **Collaborator UI:** Management panel for executive staff.
 
+## Phase 1.5: NotebookLM + Budget Intelligence (Current)
+- [x] **NotebookLM MCP Integration:** MCP server bridge connecting StratOS to NotebookLM notebooks via `notebooklm-mcp` proxy.
+- [x] **NotebookLM Sync Pipeline:** Bidirectional sync between NotebookLM notebook and the StratOS knowledge base (Second Brain).
+- [x] **NotebookLM Enterprise API:** Production-grade integration via Google Discovery Engine API for real-time notebook queries.
+- [x] **Budget Intelligence Dashboard:** Upload and parse FY 2026 Budget Excel (SheetJS), with AI-powered analysis via Gemini.
+- [x] **Voice Agent Budget Expertise:** Voice operator can now discuss budget line items, revenue gaps, and financials with specific dollar amounts.
+- [x] **Notebook Query Tool:** `query_notebook` function enables both text and voice agents to query NotebookLM in real-time.
+- [x] **Notebook Sync Panel:** Full-featured UI modal for managing notebook connections, uploading budget files, and running sync operations.
+- [ ] **Excel Embedded Viewer (Phase 2):** In-app spreadsheet viewing with SheetJS or OnlyOffice for live budget manipulation.
+- [ ] **Claude Excel Extension Bridge:** Integration path for Claude's Excel analysis capabilities within the strategic dashboard.
+
 ## Phase 2: Professionalization (Q2 2026)
 - [ ] **Multi-Tenant Architecture:** Database schema updates to support multiple organizations on a single platform.
 - [ ] **Auth & RBAC:** Implementation of secure login (Auth0/Supabase Auth) with Role-Based Access Control (Admin vs. Contributor vs. Viewer).
