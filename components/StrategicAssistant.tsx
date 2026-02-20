@@ -1,20 +1,23 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality, Type, LiveServerMessage, GenerateContentResponse } from '@google/genai';
-import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, BookOpen, Mail, Calendar, Activity } from 'lucide-react';
+import { Mic, MicOff, Send, Sparkles, Loader2, Brain, Zap, X, MessageSquare, ChevronDown, BookOpen, Mail, Calendar, Activity, FileSpreadsheet, Search } from 'lucide-react';
 import { decode, decodeAudioData, createBlob } from './AudioUtils';
+import { queryNotebookLm } from '../lib/notebookLmEnterprise';
 
 interface StrategicAssistantProps {
   onNavigate: (id: number) => void;
   onAddAction: (pillarId: number, task: any) => void;
   onAgentAction: (type: 'email' | 'calendar', details: string) => void;
   onUpdateKB: (newContent: any) => void;
+  onOpenNotebookSync?: () => void;
+  onOpenBudgetView?: () => void;
   pillars: any[];
   knowledgeBase: any;
 }
 
-export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({ 
-  onNavigate, onAddAction, onAgentAction, onUpdateKB, pillars, knowledgeBase 
+export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
+  onNavigate, onAddAction, onAgentAction, onUpdateKB, onOpenNotebookSync, onOpenBudgetView, pillars, knowledgeBase
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
@@ -30,12 +33,53 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const sessionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
+
   const transcriptionRef = useRef('');
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, liveTranscript, isOpen]);
+
+  // Build enriched system instruction with budget + notebook data
+  const buildSystemInstruction = () => {
+    const budgetContext = knowledgeBase.budgetIntelligence
+      ? `\n\nBUDGET INTELLIGENCE (FY 2026):
+        Total Revenue: $${knowledgeBase.budgetIntelligence.totalRevenue?.toLocaleString() || 'N/A'}
+        Total Expenses: $${knowledgeBase.budgetIntelligence.totalExpenses?.toLocaleString() || 'N/A'}
+        Net Position: $${knowledgeBase.budgetIntelligence.netPosition?.toLocaleString() || 'N/A'}
+        Revenue Categories: ${JSON.stringify(knowledgeBase.budgetIntelligence.revenueByCategory || {})}
+        Expense Categories: ${JSON.stringify(knowledgeBase.budgetIntelligence.expenseByCategory || {})}
+        Capital Projects: ${JSON.stringify(knowledgeBase.budgetIntelligence.capitalProjects || [])}`
+      : '';
+
+    const notebookContext = knowledgeBase.notebookSyncData?.extractedInsights
+      ? `\n\nNOTEBOOKLM INTELLIGENCE (synced ${knowledgeBase.notebookSyncData.lastSynced}):
+        ${knowledgeBase.notebookSyncData.extractedInsights.map((i: any) => `Q: ${i.question}\nA: ${i.answer}`).join('\n\n')}`
+      : '';
+
+    return `You are the KSU Strategic Operator — an AI executive assistant for Kennesaw State Athletics.
+        SECOND BRAIN ACCESS: ${JSON.stringify({
+          projectTitle: knowledgeBase.projectTitle,
+          organization: knowledgeBase.organization,
+          mission: knowledgeBase.mission,
+          coreObjectives: knowledgeBase.coreObjectives,
+          strategicPhilosophies: knowledgeBase.strategicPhilosophies,
+          revenueTargets: knowledgeBase.revenueTargets,
+        })}
+        ${budgetContext}
+        ${notebookContext}
+
+        AGENTIC CAPABILITIES:
+        1. Manage Pillars & Tasks (navigate_to_pillar, add_action_item).
+        2. Send Strategic Emails (send_strategic_email).
+        3. Schedule Meetings (schedule_calendar_event).
+        4. Ingest New Intelligence (update_second_brain) - use this if the user provides new data.
+        5. Query NotebookLM (query_notebook) - use this to answer deep questions about the budget, strategic plan, or any document in the KSU Athletics NotebookLM notebook.
+
+        BUDGET EXPERTISE: You can discuss all budget line items, revenue gaps, expense categories, capital projects, and financial strategy in detail. Reference specific dollar amounts whenever possible.
+
+        Pillar Mapping: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.`;
+  };
 
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,25 +92,17 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const config: any = {
-        systemInstruction: `You are the KSU Strategic Operator.
-        SECOND BRAIN ACCESS: ${JSON.stringify(knowledgeBase)}
-        
-        AGENTIC CAPABILITIES:
-        1. Manage Pillars & Tasks.
-        2. Send Strategic Emails (send_strategic_email).
-        3. Schedule Meetings (schedule_calendar_event).
-        4. Ingest New Intelligence (update_second_brain) - use this if the user provides new notebook data.
 
-        Pillar Mapping: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.`,
+      const config: any = {
+        systemInstruction: buildSystemInstruction(),
         tools: [{
           functionDeclarations: [
             { name: 'navigate_to_pillar', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER } }, required: ['pillarId'] } },
             { name: 'add_action_item', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER }, task: { type: Type.STRING }, owner: { type: Type.STRING }, priority: { type: Type.STRING } }, required: ['pillarId', 'task', 'owner', 'priority'] } },
             { name: 'send_strategic_email', parameters: { type: Type.OBJECT, properties: { recipient: { type: Type.STRING }, subject: { type: Type.STRING }, body: { type: Type.STRING } }, required: ['recipient', 'subject', 'body'] } },
             { name: 'schedule_calendar_event', parameters: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, date: { type: Type.STRING }, participants: { type: Type.ARRAY, items: { type: Type.STRING } } }, required: ['title', 'date'] } },
-            { name: 'update_second_brain', parameters: { type: Type.OBJECT, properties: { newIntelligence: { type: Type.STRING, description: "Text data to merge into knowledge base" } }, required: ['newIntelligence'] } }
+            { name: 'update_second_brain', parameters: { type: Type.OBJECT, properties: { newIntelligence: { type: Type.STRING, description: "Text data to merge into knowledge base" } }, required: ['newIntelligence'] } },
+            { name: 'query_notebook', description: 'Query the KSU Athletics NotebookLM notebook for detailed information about the budget, strategic plan, or any uploaded documents.', parameters: { type: Type.OBJECT, properties: { question: { type: Type.STRING, description: "The question to ask the NotebookLM knowledge base" } }, required: ['question'] } }
           ]
         }]
       };
@@ -93,7 +129,16 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             }
             if (fc.name === 'update_second_brain') {
               onUpdateKB({ ...knowledgeBase, recentIngest: fc.args.newIntelligence });
-              setChatHistory(prev => [...prev, { role: 'system', text: `SYNC: New intelligence from notebook ingested into Second Brain.` }]);
+              setChatHistory(prev => [...prev, { role: 'system', text: `SYNC: New intelligence ingested into Second Brain.` }]);
+            }
+            if (fc.name === 'query_notebook') {
+              setChatHistory(prev => [...prev, { role: 'system', text: `NOTEBOOK: Querying NotebookLM...` }]);
+              try {
+                const nbResult = await queryNotebookLm(String(fc.args.question), knowledgeBase);
+                setChatHistory(prev => [...prev, { role: 'ai', text: `[NotebookLM ${nbResult.source}] ${nbResult.answer}` }]);
+              } catch (err) {
+                setChatHistory(prev => [...prev, { role: 'system', text: `NOTEBOOK: Query failed — using local knowledge base.` }]);
+              }
             }
           }
         }
@@ -112,15 +157,15 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
     setIsConnecting(true);
     transcriptionRef.current = '';
     setLiveTranscript('');
-    
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     try {
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = inputCtx;
       outputAudioContextRef.current = outputCtx;
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
@@ -129,7 +174,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
           onopen: () => {
             setIsConnecting(false);
             setIsVoiceActive(true);
-            
+
             inputCtx.resume();
             outputCtx.resume();
 
@@ -165,7 +210,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
             }
-            
+
             const inputTranscript = message.serverContent?.inputTranscription?.text;
             if (inputTranscript) {
               transcriptionRef.current += inputTranscript;
@@ -189,9 +234,15 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                 if (fc.name === 'send_strategic_email') onAgentAction('email', `Email sent: ${fc.args.subject}`);
                 if (fc.name === 'schedule_calendar_event') onAgentAction('calendar', `Meeting booked: ${fc.args.title}`);
                 if (fc.name === 'update_second_brain') onUpdateKB({ ...knowledgeBase, lastVoiceSync: fc.args.newIntelligence });
-                
-                sessionPromise.then(s => s.sendToolResponse({ 
-                  functionResponses: { id: fc.id, name: fc.name, response: { result: toolResult } } 
+                if (fc.name === 'query_notebook') {
+                  try {
+                    const nbResult = await queryNotebookLm(String(fc.args.question), knowledgeBase);
+                    toolResult = nbResult.answer;
+                  } catch { toolResult = "NotebookLM query failed, using local knowledge."; }
+                }
+
+                sessionPromise.then(s => s.sendToolResponse({
+                  functionResponses: { id: fc.id, name: fc.name, response: { result: toolResult } }
                 }));
               }
             }
@@ -204,16 +255,28 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {}, 
+          inputAudioTranscription: {},
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
           },
-          systemInstruction: `You are the KSU Strategic Voice Operator. 
+          systemInstruction: `You are the KSU Strategic Voice Operator.
           MISSION: High-stakes execution support for the Power Four Ascent.
-          
-          Current Pillars Mapping: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.
-          When users speak, you listen and execute via tools. 
-          If you call 'add_action_item', confirm it verbally. 
+
+          SECOND BRAIN: ${JSON.stringify({
+            projectTitle: knowledgeBase.projectTitle,
+            coreObjectives: knowledgeBase.coreObjectives,
+            revenueTargets: knowledgeBase.revenueTargets,
+          })}
+
+          ${knowledgeBase.budgetIntelligence ? `BUDGET DATA: Total Revenue: $${knowledgeBase.budgetIntelligence.totalRevenue?.toLocaleString()}, Total Expenses: $${knowledgeBase.budgetIntelligence.totalExpenses?.toLocaleString()}, Net: $${knowledgeBase.budgetIntelligence.netPosition?.toLocaleString()}` : ''}
+
+          ${knowledgeBase.notebookSyncData ? `NOTEBOOK DATA: ${knowledgeBase.notebookSyncData.budgetNarrative?.slice(0, 2000) || ''}` : ''}
+
+          Current Pillars: ${pillars?.map(p => `#${p.id}: ${p.title}`).join(', ') || ''}.
+
+          CAPABILITIES: You can navigate pillars, add tasks, send emails, schedule meetings, update the knowledge base, and query NotebookLM for detailed budget and strategic information.
+
+          When asked about the budget, provide specific dollar amounts. When asked about strategy, reference the strategic pillars and objectives.
           Keep responses concise and authoritative.`,
           tools: [{
             functionDeclarations: [
@@ -221,15 +284,16 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
               { name: 'add_action_item', parameters: { type: Type.OBJECT, properties: { pillarId: { type: Type.INTEGER }, task: { type: Type.STRING }, owner: { type: Type.STRING }, priority: { type: Type.STRING } }, required: ['pillarId', 'task', 'owner', 'priority'] } },
               { name: 'send_strategic_email', parameters: { type: Type.OBJECT, properties: { recipient: { type: Type.STRING }, subject: { type: Type.STRING }, body: { type: Type.STRING } }, required: ['recipient', 'subject', 'body'] } },
               { name: 'schedule_calendar_event', parameters: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, date: { type: Type.STRING } }, required: ['title', 'date'] } },
-              { name: 'update_second_brain', parameters: { type: Type.OBJECT, properties: { newIntelligence: { type: Type.STRING } }, required: ['newIntelligence'] } }
+              { name: 'update_second_brain', parameters: { type: Type.OBJECT, properties: { newIntelligence: { type: Type.STRING } }, required: ['newIntelligence'] } },
+              { name: 'query_notebook', description: 'Query NotebookLM for detailed budget or strategic plan information', parameters: { type: Type.OBJECT, properties: { question: { type: Type.STRING } }, required: ['question'] } }
             ]
           }]
         }
       });
       sessionRef.current = await sessionPromise;
-    } catch (e) { 
+    } catch (e) {
       console.error("Voice start failed", e);
-      stopVoice(); 
+      stopVoice();
     }
   };
 
@@ -240,7 +304,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
       try { sessionRef.current.close(); } catch(e) {}
       sessionRef.current = null;
     }
-    
+
     [audioContextRef.current, outputAudioContextRef.current].forEach(ctx => {
       if (ctx && ctx.state !== 'closed') {
         try { ctx.close(); } catch(e) {}
@@ -248,7 +312,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
     });
     audioContextRef.current = null;
     outputAudioContextRef.current = null;
-    
+
     sourcesRef.current.forEach(s => {
       try { s.stop(); } catch(e) {}
     });
@@ -259,7 +323,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
   return (
     <div className={`fixed bottom-6 right-6 z-50 transition-all duration-500 ease-in-out ${isOpen ? 'w-full md:w-[400px] h-[620px]' : 'w-auto h-auto'}`}>
       {!isOpen ? (
-        <button 
+        <button
           onClick={() => setIsOpen(true)}
           className="group flex items-center space-x-3 bg-black text-white px-6 py-4 rounded-full shadow-4xl border-2 border-yellow-500 hover:scale-105 transition-all"
         >
@@ -278,7 +342,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
                 <div className="flex items-center space-x-2 mt-1">
                   <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isVoiceActive ? 'bg-red-500' : 'bg-green-500'}`}></div>
                   <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">
-                    {isVoiceActive ? 'Voice Uplink Active' : 'Agentic Uplink Standby'}
+                    {isVoiceActive ? 'Voice Uplink Active' : knowledgeBase.budgetIntelligence ? 'Budget + Notebook Loaded' : 'Agentic Uplink Standby'}
                   </p>
                 </div>
               </div>
@@ -290,7 +354,7 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
             {chatHistory.map((chat, i) => (
               <div key={i} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[90%] p-4 rounded-2xl text-[11px] font-bold shadow-sm ${
-                  chat.role === 'user' ? 'bg-black text-white' : 
+                  chat.role === 'user' ? 'bg-black text-white' :
                   chat.role === 'system' ? 'bg-blue-50 text-blue-700 border border-blue-100 italic' :
                   'bg-white text-gray-800 border border-gray-100'
                 }`}>
@@ -319,24 +383,25 @@ export const StrategicAssistant: React.FC<StrategicAssistantProps> = ({
 
           <div className="p-4 bg-white border-t border-gray-100">
             <div className="flex items-center space-x-3 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-              <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap"><Mail size={10}/> <span>Email Owner</span></div>
-              <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap"><Calendar size={10}/> <span>Book Briefing</span></div>
-              <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap"><BookOpen size={10}/> <span>Notebook Sync</span></div>
+              <button onClick={() => onOpenNotebookSync?.()} className="flex items-center space-x-1.5 bg-gray-100 hover:bg-yellow-50 hover:border-yellow-500 border border-transparent px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap transition-colors"><BookOpen size={10}/> <span>Notebook Sync</span></button>
+              <button onClick={() => onOpenBudgetView?.()} className="flex items-center space-x-1.5 bg-gray-100 hover:bg-green-50 hover:border-green-500 border border-transparent px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap transition-colors"><FileSpreadsheet size={10}/> <span>Budget View</span></button>
+              <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap"><Mail size={10}/> <span>Email</span></div>
+              <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-gray-500 whitespace-nowrap"><Calendar size={10}/> <span>Calendar</span></div>
             </div>
             <form onSubmit={handleTextSubmit} className="flex items-center space-x-2">
-              <button 
-                type="button" 
-                onClick={isVoiceActive ? stopVoice : startVoice} 
+              <button
+                type="button"
+                onClick={isVoiceActive ? stopVoice : startVoice}
                 disabled={isConnecting}
                 className={`p-3 rounded-xl shadow-md transition-all ${isVoiceActive ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-400 hover:text-black'}`}
               >
                 {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Mic size={18} />}
               </button>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Command changes or sync notebook..."
+                placeholder="Ask about budget, strategy, or give commands..."
                 className="flex-1 bg-gray-50 border-2 border-transparent focus:border-yellow-500 rounded-xl px-4 py-3 text-[12px] font-bold outline-none transition-all"
               />
               <button type="submit" className="text-yellow-600 hover:scale-110 transition-transform"><Send size={20} /></button>
