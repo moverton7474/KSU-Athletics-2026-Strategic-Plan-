@@ -10,11 +10,14 @@
     "mcp-proxy": "npx ts-node server/notebookLmProxy.ts"
   },
   "dependencies": {
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "lucide-react": "^0.564.0",
     "@google/genai": "^1.41.0",
     "@supabase/supabase-js": "^2.45.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "lucide-react": "^0.564.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "ts-node": "^10.9.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

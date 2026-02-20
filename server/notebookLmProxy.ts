@@ -123,13 +123,13 @@ class McpProcessManager {
       this.pendingRequests.set(id, { resolve, reject });
       this.process!.stdin!.write(JSON.stringify(request) + '\n');
 
-      // Timeout after 30 seconds
+      // Timeout after 120 seconds (browser-based tools need more time)
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error(`MCP tool call '${toolName}' timed out`));
         }
-      }, 30000);
+      }, 120000);
     });
   }
 
@@ -182,12 +182,45 @@ async function startProxy() {
       }
 
       const result = await mcp.callTool('ask_question', { question });
-      res.json({
-        answer: (result as any)?.answer || String(result),
-        citations: (result as any)?.citations || [],
-        confidence: (result as any)?.confidence || 0.8,
-        source: 'notebooklm-mcp',
-      });
+
+      // MCP returns { content: [{ type: "text", text: JSON }] }
+      let answer = '';
+      let citations: string[] = [];
+      let confidence = 0.8;
+      try {
+        const content = (result as any)?.content;
+        if (Array.isArray(content) && content.length > 0) {
+          const parsed = JSON.parse(content[0].text);
+          answer = parsed?.data?.answer || parsed?.answer || content[0].text;
+          citations = parsed?.data?.citations || [];
+          confidence = parsed?.data?.confidence || 0.8;
+        } else {
+          answer = String(result);
+        }
+      } catch {
+        answer = String(result);
+      }
+
+      res.json({ answer, citations, confidence, source: 'notebooklm-mcp' });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Add Notebook ────────────────────────────────────────────
+  app.post('/mcp/add-notebook', async (req, res) => {
+    const { url, name, description } = req.body;
+    if (!url) {
+      res.status(400).json({ error: 'url is required' });
+      return;
+    }
+
+    try {
+      const args: Record<string, unknown> = { url };
+      if (name) args.name = name;
+      if (description) args.description = description;
+      const result = await mcp.callTool('add_notebook', args);
+      res.json({ success: true, result });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -244,6 +277,7 @@ async function startProxy() {
     console.log(`  POST /mcp/ask              { question, notebookId? }`);
     console.log(`  GET  /mcp/notebooks`);
     console.log(`  GET  /mcp/notebooks/:id`);
+    console.log(`  POST /mcp/notebooks              { url, name?, description? }`);
     console.log(`  POST /mcp/notebooks/:id/select`);
     console.log(`  POST /mcp/auth`);
   });
