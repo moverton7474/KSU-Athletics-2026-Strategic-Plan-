@@ -1,3 +1,4 @@
+// @ts-nocheck — Server-side code; express/cors types installed at deploy time
 /**
  * ============================================================
  * NotebookLM MCP Proxy Server

@@ -48,10 +48,10 @@ BUDGET SUMMARY:
 - Capital Projects: ${budgetData.capitalProjects.length} items
 
 TOP REVENUE CATEGORIES:
-${Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => b - a).slice(0, 10).map(([k,v]) => `- ${k}: $${v.toLocaleString()}`).join('\n')}
+${Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 10).map(([k,v]) => `- ${k}: $${(v as number).toLocaleString()}`).join('\n')}
 
 TOP EXPENSE CATEGORIES:
-${Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => b - a).slice(0, 10).map(([k,v]) => `- ${k}: $${v.toLocaleString()}`).join('\n')}
+${Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 10).map(([k,v]) => `- ${k}: $${(v as number).toLocaleString()}`).join('\n')}
 
 STRATEGIC CONTEXT:
 ${JSON.stringify(knowledgeBase?.coreObjectives || [])}
@@ -114,8 +114,8 @@ Provide: 1) 3-sentence executive summary, 2) Top 3 risk areas, 3) Alignment with
   }
 
   // ── Budget Dashboard ─────────────────────────────────────────
-  const topRevenue = Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => b - a).slice(0, 8);
-  const topExpenses = Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => b - a).slice(0, 8);
+  const topRevenue = Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 8);
+  const topExpenses = Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -193,7 +193,7 @@ Provide: 1) 3-sentence executive summary, 2) Top 3 risk areas, 3) Alignment with
                   {topRevenue.map(([name, amount], i) => (
                     <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50">
                       <span className="text-[11px] font-bold text-gray-700 truncate max-w-[200px]">{name}</span>
-                      <span className="text-[11px] font-black text-green-600">{formatCurrency(amount)}</span>
+                      <span className="text-[11px] font-black text-green-600">{formatCurrency(amount as number)}</span>
                     </div>
                   ))}
                 </div>
@@ -204,7 +204,7 @@ Provide: 1) 3-sentence executive summary, 2) Top 3 risk areas, 3) Alignment with
                   {topExpenses.map(([name, amount], i) => (
                     <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50">
                       <span className="text-[11px] font-bold text-gray-700 truncate max-w-[200px]">{name}</span>
-                      <span className="text-[11px] font-black text-red-600">{formatCurrency(amount)}</span>
+                      <span className="text-[11px] font-black text-red-600">{formatCurrency(amount as number)}</span>
                     </div>
                   ))}
                 </div>
@@ -217,15 +217,16 @@ Provide: 1) 3-sentence executive summary, 2) Top 3 risk areas, 3) Alignment with
           <div className="p-8">
             <h3 className="text-lg font-black uppercase tracking-tight mb-6">Revenue Breakdown</h3>
             <div className="space-y-3">
-              {Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => b - a).map(([name, amount], i) => {
-                const pct = budgetData.totalRevenue > 0 ? (amount / budgetData.totalRevenue) * 100 : 0;
+              {Object.entries(budgetData.revenueByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).map(([name, amount], i) => {
+                const amt = amount as number;
+                const pct = budgetData.totalRevenue > 0 ? (amt / budgetData.totalRevenue) * 100 : 0;
                 return (
                   <div key={i} className="group">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-[11px] font-bold text-gray-700">{name}</span>
                       <div className="flex items-center space-x-3">
                         <span className="text-[9px] text-gray-400 font-bold">{pct.toFixed(1)}%</span>
-                        <span className="text-[11px] font-black text-green-600">{formatCurrency(amount)}</span>
+                        <span className="text-[11px] font-black text-green-600">{formatCurrency(amt)}</span>
                       </div>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
@@ -242,15 +243,16 @@ Provide: 1) 3-sentence executive summary, 2) Top 3 risk areas, 3) Alignment with
           <div className="p-8">
             <h3 className="text-lg font-black uppercase tracking-tight mb-6">Expense Breakdown</h3>
             <div className="space-y-3">
-              {Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => b - a).map(([name, amount], i) => {
-                const pct = budgetData.totalExpenses > 0 ? (amount / budgetData.totalExpenses) * 100 : 0;
+              {Object.entries(budgetData.expenseByCategory).sort(([,a],[,b]) => (b as number) - (a as number)).map(([name, amount], i) => {
+                const amt = amount as number;
+                const pct = budgetData.totalExpenses > 0 ? (amt / budgetData.totalExpenses) * 100 : 0;
                 return (
                   <div key={i} className="group">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-[11px] font-bold text-gray-700">{name}</span>
                       <div className="flex items-center space-x-3">
                         <span className="text-[9px] text-gray-400 font-bold">{pct.toFixed(1)}%</span>
-                        <span className="text-[11px] font-black text-red-600">{formatCurrency(amount)}</span>
+                        <span className="text-[11px] font-black text-red-600">{formatCurrency(amt)}</span>
                       </div>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
